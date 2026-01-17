@@ -189,7 +189,7 @@ const Onboarding = () => {
             </p>
           </div>
 
-          <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+          <div className="pr-2">
             {renderStep()}
           </div>
 
