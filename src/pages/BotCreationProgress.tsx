@@ -87,19 +87,19 @@ const BotCreationProgress = () => {
 
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen bg-gradient-to-br from-cyan-50/30 via-background to-amber-50/20">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+        <header className="flex items-center justify-between px-6 py-4 border-b border-border">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <MessageSquare className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold text-white">CHATBOT AI</span>
+            <span className="text-lg font-bold text-primary">CHATBOT AI</span>
           </Link>
           <Button
             variant="outline"
             onClick={() => navigate("/dashboard")}
-            className="border-slate-600 text-slate-300 hover:bg-slate-700"
+            className="border-border text-foreground hover:bg-muted"
           >
             Go to Dashboard
           </Button>
@@ -113,87 +113,87 @@ const BotCreationProgress = () => {
               <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                 <Check className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-emerald-400">Chatbot Created Successfully!</h1>
+              <h1 className="text-2xl font-bold text-emerald-600">Chatbot Created Successfully!</h1>
             </div>
-            <p className="text-slate-400 ml-11">Your AI agent "{agentName}" is ready to go.</p>
+            <p className="text-muted-foreground ml-11">Your AI agent "{agentName}" is ready to go.</p>
           </div>
 
           {/* Bot Summary Card */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 mb-8">
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6 mb-8">
             <div className="space-y-4">
-              <div className="flex justify-between items-center py-2 border-b border-slate-700">
-                <span className="text-slate-400">Chatbot ID</span>
-                <span className="text-cyan-400 font-mono">{botSummary.chatbotId}</span>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Chatbot ID</span>
+                <span className="text-primary font-mono">{botSummary.chatbotId}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-700">
-                <span className="text-slate-400">Tenant ID</span>
-                <span className="text-cyan-400 font-mono">{botSummary.tenantId}</span>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Tenant ID</span>
+                <span className="text-primary font-mono">{botSummary.tenantId}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-700">
-                <span className="text-slate-400">Documents Processed</span>
-                <span className="text-cyan-400">{botSummary.documentsProcessed}</span>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Documents Processed</span>
+                <span className="text-primary">{botSummary.documentsProcessed}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-700">
-                <span className="text-slate-400">Entities Created (Neo4j)</span>
-                <span className="text-cyan-400">{botSummary.entitiesCreated}</span>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Entities Created (Neo4j)</span>
+                <span className="text-primary">{botSummary.entitiesCreated}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-700">
-                <span className="text-slate-400">Relationships Created</span>
-                <span className="text-cyan-400">{botSummary.relationshipsCreated}</span>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Relationships Created</span>
+                <span className="text-primary">{botSummary.relationshipsCreated}</span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-slate-400">Chunks Stored (Milvus)</span>
-                <span className="text-cyan-400">{botSummary.chunksStored}</span>
+                <span className="text-muted-foreground">Chunks Stored (Milvus)</span>
+                <span className="text-primary">{botSummary.chunksStored}</span>
               </div>
             </div>
           </div>
 
           {/* Action Cards */}
           <div className="mb-8">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
               What would you like to do next?
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* API Integration */}
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
                 <div className="flex items-center gap-2 mb-3">
-                  <Terminal className="w-5 h-5 text-cyan-400" />
-                  <h3 className="font-semibold text-white">API Integration</h3>
+                  <Terminal className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">API Integration</h3>
                 </div>
-                <p className="text-sm text-slate-400 mb-4 flex-1">
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
                   Get curl commands to integrate chat functionality into your application.
                 </p>
-                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                   View Curl Commands
                 </Button>
               </div>
 
               {/* Shareable Chat Link */}
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
                 <div className="flex items-center gap-2 mb-3">
                   <Link2 className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-white">Shareable Chat Link</h3>
+                  <h3 className="font-semibold text-foreground">Shareable Chat Link</h3>
                 </div>
-                <p className="text-sm text-slate-400 mb-4 flex-1">
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
                   Generate a link with a pre-created session to share with others.
                 </p>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                   Generate Chat Link
                 </Button>
               </div>
 
               {/* Start Chatting */}
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
                 <div className="flex items-center gap-2 mb-3">
-                  <MessageCircle className="w-5 h-5 text-pink-400" />
-                  <h3 className="font-semibold text-white">Start Chatting</h3>
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Start Chatting</h3>
                 </div>
-                <p className="text-sm text-slate-400 mb-4 flex-1">
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
                   Open the chat window here. You'll need to fill in your details first.
                 </p>
                 <Button 
                   onClick={handleStartChatting}
-                  className="w-full bg-pink-600 hover:bg-pink-700 text-white"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   Start Chatting
                 </Button>
@@ -202,18 +202,18 @@ const BotCreationProgress = () => {
           </div>
 
           {/* Activity Log */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
               Activity Log
             </h2>
             <div className="space-y-3">
               {activityLogs.map((log, index) => (
                 <div key={index} className="flex items-start gap-3">
-                  <div className="flex items-center gap-2 text-slate-500">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="w-4 h-4" />
                     <span className="text-xs font-mono">{log.time}</span>
                   </div>
-                  <span className={`text-sm ${index === activityLogs.length - 1 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  <span className={`text-sm ${index === activityLogs.length - 1 ? 'text-emerald-600' : 'text-foreground'}`}>
                     {log.message}
                   </span>
                 </div>
