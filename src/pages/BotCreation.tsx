@@ -135,8 +135,7 @@ const BotCreation = () => {
 
   const handleSubmit = () => {
     console.log("Bot Creation Data:", formData);
-    toast.success("Bot created successfully!");
-    navigate("/");
+    navigate("/bot-creation-progress");
   };
 
   const renderStep = () => {
