@@ -20,6 +20,8 @@ interface CompanyProfileData {
   country: string;
   region: string;
   companySize: string;
+  monthlyCustomerInteractions: string;
+  typicalCustomerQueries: string[];
 }
 
 interface CompanyProfileStepProps {
@@ -33,6 +35,8 @@ const customerTypes = ["B2B", "B2C", "Both"];
 const companySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
 const countries = ["India", "USA", "UK", "Germany", "Australia", "Canada", "Other"];
 const regions = ["North America", "Europe", "Asia Pacific", "Middle East", "Africa", "Latin America"];
+const interactionVolumes = ["Less than 100", "100-500", "500-1000", "1000-5000", "5000+"];
+const queryTypes = ["Pricing", "Features", "Technical Support", "Account Issues", "Billing", "General Inquiries", "Product Demo", "Complaints"];
 
 const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
   const toggleService = (service: string) => {
@@ -41,6 +45,14 @@ const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
       ? current.filter((s) => s !== service)
       : [...current, service];
     onChange({ primaryServices: updated });
+  };
+
+  const toggleQuery = (query: string) => {
+    const current = data.typicalCustomerQueries || [];
+    const updated = current.includes(query)
+      ? current.filter((q) => q !== query)
+      : [...current, query];
+    onChange({ typicalCustomerQueries: updated });
   };
 
   return (
@@ -236,6 +248,58 @@ const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
                 }`}
               >
                 {size} people
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Section 3: Customer Interactions */}
+      <div className="space-y-5">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+          Customer Interactions
+        </h2>
+
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">
+            Monthly Customer Interactions <span className="text-destructive">*</span>
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {interactionVolumes.map((volume) => (
+              <button
+                key={volume}
+                type="button"
+                onClick={() => onChange({ monthlyCustomerInteractions: volume })}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                  data.monthlyCustomerInteractions === volume
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
+                }`}
+              >
+                {volume}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">
+            Typical Customer Queries <span className="text-destructive">*</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">Select all that apply</p>
+          <div className="flex flex-wrap gap-2">
+            {queryTypes.map((query) => (
+              <button
+                key={query}
+                type="button"
+                onClick={() => toggleQuery(query)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                  data.typicalCustomerQueries?.includes(query)
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
+                }`}
+              >
+                {query}
               </button>
             ))}
           </div>
