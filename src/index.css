@@ -136,4 +136,21 @@
   .step-indicator-inactive {
     @apply bg-muted;
   }
+
+  /* Onboarding specific styles */
+  .onboarding-input {
+    @apply w-full px-4 py-3.5 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm;
+  }
+
+  .onboarding-chip {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer;
+  }
+
+  .onboarding-chip-active {
+    @apply bg-primary text-primary-foreground shadow-md;
+  }
+
+  .onboarding-chip-inactive {
+    @apply bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted;
+  }
 }
