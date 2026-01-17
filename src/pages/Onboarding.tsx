@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import OnboardingStepIndicator from "@/components/onboarding/OnboardingStepIndicator";
-import OnboardingIllustration from "@/components/onboarding/OnboardingIllustration";
 import CompanyProfileStep from "@/components/onboarding/steps/CompanyProfileStep";
 import BotConfigurationStep from "@/components/onboarding/steps/BotConfigurationStep";
 import KnowledgeBaseStep from "@/components/onboarding/steps/KnowledgeBaseStep";
@@ -37,6 +36,8 @@ interface OnboardingData {
   country: string;
   region: string;
   companySize: string;
+  monthlyCustomerInteractions: string;
+  typicalCustomerQueries: string[];
   // Bot Configuration (Step 2)
   commonQueries: string[];
   supportChannels: string[];
@@ -66,6 +67,8 @@ const initialData: OnboardingData = {
   country: "",
   region: "",
   companySize: "",
+  monthlyCustomerInteractions: "",
+  typicalCustomerQueries: [],
   commonQueries: [],
   supportChannels: [],
   supportEmail: "",
@@ -124,6 +127,8 @@ const Onboarding = () => {
               country: formData.country,
               region: formData.region,
               companySize: formData.companySize,
+              monthlyCustomerInteractions: formData.monthlyCustomerInteractions,
+              typicalCustomerQueries: formData.typicalCustomerQueries,
             }}
             onChange={updateFormData}
           />
@@ -167,65 +172,57 @@ const Onboarding = () => {
     <div className="min-h-screen bg-background">
       {/* Step Indicator */}
       <div className="border-b border-border bg-card/50">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <OnboardingStepIndicator steps={steps} currentStep={currentStep} />
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8 mt-8">
-        <div className="grid lg:grid-cols-2 gap-8 items-start">
-          {/* Form Section */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm p-8 lg:p-10">
-            <div className="mb-8">
-              <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-                {stepTitles[currentStep - 1]}
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                {stepDescriptions[currentStep - 1]}
-              </p>
-            </div>
-
-            <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
-              {renderStep()}
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex gap-4 mt-8 pt-6 border-t border-border">
-              {currentStep > 1 && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-input text-foreground font-semibold hover:bg-muted transition-all duration-200"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
-                </button>
-              )}
-              
-              <button
-                type="button"
-                onClick={currentStep === 3 ? handleFinish : handleNext}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                {currentStep === 3 ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Launch Your Chatbot
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+      {/* Main Content - Centered Single Column */}
+      <div className="max-w-3xl mx-auto px-4 py-8 mt-8">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-8 lg:p-10">
+          <div className="mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
+              {stepTitles[currentStep - 1]}
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              {stepDescriptions[currentStep - 1]}
+            </p>
           </div>
 
-          {/* Illustration Section */}
-          <div className="hidden lg:block sticky top-8">
-            <OnboardingIllustration step={currentStep} />
+          <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+            {renderStep()}
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex gap-4 mt-8 pt-6 border-t border-border">
+            {currentStep > 1 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-input text-foreground font-semibold hover:bg-muted transition-all duration-200"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            
+            <button
+              type="button"
+              onClick={currentStep === 3 ? handleFinish : handleNext}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              {currentStep === 3 ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Launch Your Chatbot
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
