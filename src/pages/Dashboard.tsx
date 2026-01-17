@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { 
-  Search, 
   Bot, 
   Mic, 
   MessageSquare, 
@@ -12,11 +11,11 @@ import {
   Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,28 +74,7 @@ const Dashboard = () => {
         <DashboardSidebar />
         
         <main className="flex-1 overflow-auto">
-          {/* Header */}
-          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <SidebarTrigger className="lg:hidden" />
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground">Welcome back, John! 👋</h1>
-                  <p className="text-muted-foreground">Your AI Agent <span className="text-primary font-medium">Support Bot</span> is performing great!</p>
-                </div>
-              </div>
-              
-              <div className="relative w-80 hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search for AI Agent..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 rounded-full bg-muted/50 border-none"
-                />
-              </div>
-            </div>
-          </header>
+          <DashboardHeader />
 
           <div className="p-6 space-y-8">
             {/* Metrics */}
