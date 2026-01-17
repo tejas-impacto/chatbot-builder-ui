@@ -16,6 +16,11 @@ interface BotConfigurationData {
   captureFields: string[];
   salesPriority: string;
   handoffMethod: string[];
+  notificationPreferences: {
+    emailNotifications: boolean;
+    smsNotifications: boolean;
+    inAppNotifications: boolean;
+  };
 }
 
 interface BotConfigurationStepProps {
@@ -333,6 +338,81 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
             </div>
           </div>
         )}
+      </div>
+
+      {/* Section 4: Notification Preferences */}
+      <div className="space-y-5">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+          Notification Preferences
+        </h2>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+            <div>
+              <Label htmlFor="emailNotifications" className="text-sm font-semibold text-foreground">
+                Email Notifications
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">Receive alerts and updates via email</p>
+            </div>
+            <Switch
+              id="emailNotifications"
+              checked={data.notificationPreferences?.emailNotifications}
+              onCheckedChange={(checked) => 
+                onChange({ 
+                  notificationPreferences: { 
+                    ...data.notificationPreferences, 
+                    emailNotifications: checked 
+                  } 
+                })
+              }
+              className="data-[state=checked]:bg-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+            <div>
+              <Label htmlFor="smsNotifications" className="text-sm font-semibold text-foreground">
+                SMS Notifications
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">Get text message alerts for urgent matters</p>
+            </div>
+            <Switch
+              id="smsNotifications"
+              checked={data.notificationPreferences?.smsNotifications}
+              onCheckedChange={(checked) => 
+                onChange({ 
+                  notificationPreferences: { 
+                    ...data.notificationPreferences, 
+                    smsNotifications: checked 
+                  } 
+                })
+              }
+              className="data-[state=checked]:bg-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+            <div>
+              <Label htmlFor="inAppNotifications" className="text-sm font-semibold text-foreground">
+                In-App Notifications
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">See notifications within the dashboard</p>
+            </div>
+            <Switch
+              id="inAppNotifications"
+              checked={data.notificationPreferences?.inAppNotifications}
+              onCheckedChange={(checked) => 
+                onChange({ 
+                  notificationPreferences: { 
+                    ...data.notificationPreferences, 
+                    inAppNotifications: checked 
+                  } 
+                })
+              }
+              className="data-[state=checked]:bg-primary"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
