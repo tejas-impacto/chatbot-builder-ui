@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Grid, HelpCircle, Home, FileText } from "lucide-react";
+import { MessageSquare, Grid, HelpCircle, Home, FileText, Terminal, Link2, MessageCircle, Check, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface StepStatus {
@@ -9,6 +9,11 @@ interface StepStatus {
   title: string;
   icon: React.ElementType;
   status: "pending" | "done";
+}
+
+interface ActivityLog {
+  time: string;
+  message: string;
 }
 
 const BotCreationProgress = () => {
@@ -26,8 +31,25 @@ const BotCreationProgress = () => {
     { id: 5, title: "Documents Upload", icon: FileText, status: "pending" },
   ]);
 
+  const [activityLogs] = useState<ActivityLog[]>([
+    { time: "10:23:45", message: "Answers submitted successfully" },
+    { time: "10:23:48", message: "Incorporating answers into knowledge base" },
+    { time: "10:24:12", message: "Building knowledge graph (Neo4j)" },
+    { time: "10:24:35", message: "Storing document chunks (Milvus)" },
+    { time: "10:24:58", message: "Finalizing chatbot setup" },
+    { time: "10:25:02", message: "Chatbot creation complete!" },
+  ]);
+
+  const botSummary = {
+    chatbotId: "bot_93ad297e",
+    tenantId: "tenant_001",
+    documentsProcessed: "2 (1 business, 1 personalized)",
+    entitiesCreated: 12,
+    relationshipsCreated: 11,
+    chunksStored: 17,
+  };
+
   useEffect(() => {
-    // Simulate progress
     const progressInterval = setInterval(() => {
       setCurrentProgress((prev) => {
         if (prev >= 100) {
@@ -38,7 +60,6 @@ const BotCreationProgress = () => {
       });
     }, 100);
 
-    // Update steps sequentially
     const stepTimers = steps.map((_, index) => {
       return setTimeout(() => {
         setSteps((prevSteps) =>
@@ -49,7 +70,6 @@ const BotCreationProgress = () => {
       }, (index + 1) * 1000);
     });
 
-    // Complete after all steps
     const completeTimer = setTimeout(() => {
       setIsComplete(true);
     }, 5500);
@@ -61,63 +81,144 @@ const BotCreationProgress = () => {
     };
   }, []);
 
-  const handleStartUsing = () => {
-    navigate("/dashboard");
+  const handleStartChatting = () => {
+    navigate("/manage-chatbot");
   };
 
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-cyan-50/30 via-background to-amber-50/20">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4">
+        <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <MessageSquare className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold text-primary">CHATBOT AI</span>
+            <span className="text-lg font-bold text-white">CHATBOT AI</span>
           </Link>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/dashboard")}
+            className="border-slate-600 text-slate-300 hover:bg-slate-700"
+          >
+            Go to Dashboard
+          </Button>
         </header>
 
-        {/* Success Card */}
-        <main className="flex items-center justify-center min-h-[calc(100vh-80px)] px-6">
-          <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-lg p-12 text-center">
-            {/* Happy Robot */}
-            <div className="mb-8 flex justify-center">
-              <div className="relative">
-                <div className="w-28 h-20 bg-foreground rounded-2xl flex items-center justify-center relative">
-                  {/* Eyes */}
-                  <div className="flex gap-4">
-                    <div className="w-4 h-4 bg-background rounded-full" />
-                    <div className="w-4 h-4 bg-background rounded-full" />
-                  </div>
-                  {/* Smile */}
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-8 h-4 border-b-4 border-background rounded-b-full" />
-                </div>
-                {/* Antenna */}
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-1.5 h-4 bg-foreground" />
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-3 h-3 bg-foreground rounded-full" />
-                {/* Decorative lines */}
-                <div className="absolute -right-6 top-1/2 -translate-y-1/2">
-                  <div className="flex flex-col gap-1">
-                    <div className="w-8 h-1.5 bg-primary rounded-full" />
-                    <div className="w-8 h-1.5 bg-pink-400 rounded-full" />
-                    <div className="w-8 h-1.5 bg-cyan-400 rounded-full" />
-                  </div>
-                </div>
+        {/* Success Content */}
+        <main className="max-w-4xl mx-auto px-6 py-8">
+          {/* Success Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+                <Check className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-emerald-400">Chatbot Created Successfully!</h1>
+            </div>
+            <p className="text-slate-400 ml-11">Your AI agent "{agentName}" is ready to go.</p>
+          </div>
+
+          {/* Bot Summary Card */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 mb-8">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center py-2 border-b border-slate-700">
+                <span className="text-slate-400">Chatbot ID</span>
+                <span className="text-cyan-400 font-mono">{botSummary.chatbotId}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-700">
+                <span className="text-slate-400">Tenant ID</span>
+                <span className="text-cyan-400 font-mono">{botSummary.tenantId}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-700">
+                <span className="text-slate-400">Documents Processed</span>
+                <span className="text-cyan-400">{botSummary.documentsProcessed}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-700">
+                <span className="text-slate-400">Entities Created (Neo4j)</span>
+                <span className="text-cyan-400">{botSummary.entitiesCreated}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-700">
+                <span className="text-slate-400">Relationships Created</span>
+                <span className="text-cyan-400">{botSummary.relationshipsCreated}</span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-slate-400">Chunks Stored (Milvus)</span>
+                <span className="text-cyan-400">{botSummary.chunksStored}</span>
               </div>
             </div>
+          </div>
 
-            <h1 className="text-4xl font-bold text-foreground mb-3">Agent Ready!</h1>
-            <p className="text-muted-foreground mb-8">
-              Your AI chatbot <span className="font-semibold text-primary">"{agentName}"</span> is ready
-            </p>
+          {/* Action Cards */}
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+              What would you like to do next?
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* API Integration */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <Terminal className="w-5 h-5 text-cyan-400" />
+                  <h3 className="font-semibold text-white">API Integration</h3>
+                </div>
+                <p className="text-sm text-slate-400 mb-4 flex-1">
+                  Get curl commands to integrate chat functionality into your application.
+                </p>
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">
+                  View Curl Commands
+                </Button>
+              </div>
 
-            <Button
-              onClick={handleStartUsing}
-              className="w-full rounded-full py-6 text-lg bg-primary hover:bg-primary/90"
-            >
-              Start Using
-            </Button>
+              {/* Shareable Chat Link */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-white">Shareable Chat Link</h3>
+                </div>
+                <p className="text-sm text-slate-400 mb-4 flex-1">
+                  Generate a link with a pre-created session to share with others.
+                </p>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                  Generate Chat Link
+                </Button>
+              </div>
+
+              {/* Start Chatting */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageCircle className="w-5 h-5 text-pink-400" />
+                  <h3 className="font-semibold text-white">Start Chatting</h3>
+                </div>
+                <p className="text-sm text-slate-400 mb-4 flex-1">
+                  Open the chat window here. You'll need to fill in your details first.
+                </p>
+                <Button 
+                  onClick={handleStartChatting}
+                  className="w-full bg-pink-600 hover:bg-pink-700 text-white"
+                >
+                  Start Chatting
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Log */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+              Activity Log
+            </h2>
+            <div className="space-y-3">
+              {activityLogs.map((log, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-mono">{log.time}</span>
+                  </div>
+                  <span className={`text-sm ${index === activityLogs.length - 1 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                    {log.message}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </main>
       </div>
