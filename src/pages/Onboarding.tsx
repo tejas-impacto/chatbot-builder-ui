@@ -50,6 +50,11 @@ interface OnboardingData {
   captureFields: string[];
   salesPriority: string;
   handoffMethod: string[];
+  notificationPreferences: {
+    emailNotifications: boolean;
+    smsNotifications: boolean;
+    inAppNotifications: boolean;
+  };
   // Knowledge Base (Step 3)
   documentType: string;
   files: File[];
@@ -80,6 +85,11 @@ const initialData: OnboardingData = {
   captureFields: ["email"],
   salesPriority: "medium",
   handoffMethod: [],
+  notificationPreferences: {
+    emailNotifications: true,
+    smsNotifications: false,
+    inAppNotifications: true,
+  },
   documentType: "Product Documentation",
   files: [],
   documentDescription: "",
@@ -148,6 +158,7 @@ const Onboarding = () => {
               captureFields: formData.captureFields,
               salesPriority: formData.salesPriority,
               handoffMethod: formData.handoffMethod,
+              notificationPreferences: formData.notificationPreferences,
             }}
             onChange={updateFormData}
           />
