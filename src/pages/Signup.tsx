@@ -12,7 +12,6 @@ interface FormData {
   email: string;
   mobile: string;
   organisation: string;
-  designation: string;
   password: string;
   confirmPassword: string;
 }
@@ -31,7 +30,6 @@ const Signup = () => {
     email: "",
     mobile: "",
     organisation: "",
-    designation: "",
     password: "",
     confirmPassword: "",
   });
@@ -167,7 +165,7 @@ const Signup = () => {
 
             <div>
               <label htmlFor="mobile" className="block text-sm font-medium text-foreground mb-2">
-                Mobile Number
+                Mobile Number <span className="text-muted-foreground">(optional)</span>
               </label>
               <input
                 id="mobile"
@@ -177,13 +175,12 @@ const Signup = () => {
                 onChange={handleChange}
                 placeholder="Enter Mobile Number"
                 className="auth-input"
-                required
               />
             </div>
 
             <div>
               <label htmlFor="organisation" className="block text-sm font-medium text-foreground mb-2">
-                Organisation name
+                Organisation name <span className="text-muted-foreground">(optional)</span>
               </label>
               <input
                 id="organisation"
@@ -193,23 +190,6 @@ const Signup = () => {
                 onChange={handleChange}
                 placeholder="ex: Finpro"
                 className="auth-input"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="designation" className="block text-sm font-medium text-foreground mb-2">
-                Designation
-              </label>
-              <input
-                id="designation"
-                name="designation"
-                type="text"
-                value={formData.designation}
-                onChange={handleChange}
-                placeholder="ex: UI UX"
-                className="auth-input"
-                required
               />
             </div>
 
