@@ -21,7 +21,7 @@ interface CompanyProfileData {
   region: string;
   companySize: string;
   monthlyCustomerInteractions: string;
-  typicalCustomerQueries: string[];
+  typicalCustomerQueries: Record<string, string>;
 }
 
 interface CompanyProfileStepProps {
@@ -48,11 +48,27 @@ const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
   };
 
   const toggleQuery = (query: string) => {
-    const current = data.typicalCustomerQueries || [];
-    const updated = current.includes(query)
-      ? current.filter((q) => q !== query)
-      : [...current, query];
-    onChange({ typicalCustomerQueries: updated });
+    const current = data.typicalCustomerQueries || {};
+    const queryKey = query.toLowerCase().replace(/\s+/g, '_');
+
+    if (current[queryKey]) {
+      // Remove the query
+      const { [queryKey]: _, ...rest } = current;
+      onChange({ typicalCustomerQueries: rest });
+    } else {
+      // Add the query with a default question
+      onChange({
+        typicalCustomerQueries: {
+          ...current,
+          [queryKey]: `What about ${query.toLowerCase()}?`
+        }
+      });
+    }
+  };
+
+  const isQuerySelected = (query: string) => {
+    const queryKey = query.toLowerCase().replace(/\s+/g, '_');
+    return !!data.typicalCustomerQueries?.[queryKey];
   };
 
   return (
@@ -294,7 +310,7 @@ const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
                 type="button"
                 onClick={() => toggleQuery(query)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  data.typicalCustomerQueries?.includes(query)
+                  isQuerySelected(query)
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
                 }`}

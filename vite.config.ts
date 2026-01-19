@@ -11,6 +11,19 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/api-doc': {
+        target: 'https://dev-api-iform-doc.impactodigifin.xyz',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api-doc/, '/api'),
+      },
+      '/api': {
+        target: 'https://dev-api-iform.impactodigifin.xyz',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

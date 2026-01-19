@@ -61,7 +61,7 @@ const Signup = () => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://dev-api-iform.impactodigifin.xyz/api/v1/users/register', {
+      const response = await fetch('/api/v1/users/register', {
         method: 'POST',
         headers: {
           'accept': '*/*',

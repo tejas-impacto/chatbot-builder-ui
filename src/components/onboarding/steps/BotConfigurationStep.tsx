@@ -7,15 +7,21 @@ import { TrendingUp, BarChart3, TrendingDown, Phone, Mail, MessageSquare } from 
 interface BotConfigurationData {
   commonQueries: string[];
   supportChannels: string[];
+  ticketingTool: string;
   supportEmail: string;
   supportPhone: string;
   regulations: string[];
   restrictedTopics: string;
-  botRestrictions: string[];
+  botRestrictions: string;
   enableLeadCapture: boolean;
   captureFields: string[];
   salesPriority: string;
-  handoffMethod: string[];
+  handoffMethod: string;
+  escalationPreference: string;
+  communicationStyle: string;
+  brandAdjectives: string[];
+  wordsToAvoid: string[];
+  secondaryAdminEmails: string[];
   notificationPreferences: {
     emailNotifications: boolean;
     smsNotifications: boolean;
@@ -35,7 +41,6 @@ const channels = [
   { id: "chat", label: "Live Chat", icon: MessageSquare },
 ];
 const regulations = ["GDPR", "HIPAA", "PCI-DSS", "SOC 2", "ISO 27001", "None"];
-const restrictions = ["Provide legal advice", "Offer medical diagnoses", "Give financial recommendations", "Share competitor info"];
 const captureOptions = [
   { id: "email", label: "Email" },
   { id: "phone", label: "Phone" },
@@ -43,9 +48,9 @@ const captureOptions = [
   { id: "company", label: "Company" },
 ];
 const priorityOptions = [
-  { id: "high", label: "Aggressive", icon: TrendingUp, desc: "Capture leads early" },
-  { id: "medium", label: "Balanced", icon: BarChart3, desc: "After building rapport" },
-  { id: "low", label: "Soft", icon: TrendingDown, desc: "Only when asked" },
+  { id: "High", label: "Aggressive", icon: TrendingUp, desc: "Capture leads early" },
+  { id: "Medium", label: "Balanced", icon: BarChart3, desc: "After building rapport" },
+  { id: "Low", label: "Soft", icon: TrendingDown, desc: "Only when asked" },
 ];
 const handoffOptions = [
   { id: "call", label: "Schedule Call", icon: Phone },
@@ -78,28 +83,12 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
     onChange({ regulations: updated });
   };
 
-  const toggleRestriction = (restriction: string) => {
-    const current = data.botRestrictions || [];
-    const updated = current.includes(restriction)
-      ? current.filter((r) => r !== restriction)
-      : [...current, restriction];
-    onChange({ botRestrictions: updated });
-  };
-
   const toggleCaptureField = (field: string) => {
     const current = data.captureFields || [];
     const updated = current.includes(field)
       ? current.filter((f) => f !== field)
       : [...current, field];
     onChange({ captureFields: updated });
-  };
-
-  const toggleHandoffMethod = (method: string) => {
-    const current = data.handoffMethod || [];
-    const updated = current.includes(method)
-      ? current.filter((m) => m !== method)
-      : [...current, method];
-    onChange({ handoffMethod: updated });
   };
 
   return (
@@ -215,26 +204,17 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
           />
         </div>
 
-        <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+        <div className="space-y-2">
+          <Label htmlFor="botRestrictions" className="text-sm font-semibold text-foreground">
             The chatbot should never... <span className="text-destructive">*</span>
           </Label>
-          <div className="flex flex-wrap gap-2">
-            {restrictions.map((restriction) => (
-              <button
-                key={restriction}
-                type="button"
-                onClick={() => toggleRestriction(restriction)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  data.botRestrictions?.includes(restriction)
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
-                }`}
-              >
-                {restriction}
-              </button>
-            ))}
-          </div>
+          <Input
+            id="botRestrictions"
+            value={data.botRestrictions}
+            onChange={(e) => onChange({ botRestrictions: e.target.value })}
+            placeholder="e.g., Never share customer data, never provide legal advice..."
+            className="onboarding-input"
+          />
         </div>
       </div>
 
@@ -313,7 +293,7 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
             <div className="space-y-3">
               <Label className="text-sm font-semibold text-foreground">
-                Human handoff method
+                Sales handoff method
               </Label>
               <div className="flex flex-wrap gap-3">
                 {handoffOptions.map((option) => {
@@ -322,9 +302,10 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => toggleHandoffMethod(option.id)}
+                      onClick={() => onChange({ handoffMethod: option.id === "call" ? "Webhook" : option.id === "email" ? "Email" : "Webhook" })}
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                        data.handoffMethod?.includes(option.id)
+                        (option.id === "email" && data.handoffMethod === "Email") ||
+                        (option.id !== "email" && data.handoffMethod === "Webhook")
                           ? "bg-primary text-primary-foreground shadow-md"
                           : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
                       }`}

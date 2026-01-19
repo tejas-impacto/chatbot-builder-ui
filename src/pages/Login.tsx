@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
 import { useToast } from "@/hooks/use-toast";
+import { startTokenRefreshTimer, storeTokenTimestamp } from "@/lib/auth";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +19,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://dev-api-iform.impactodigifin.xyz/api/v1/auth/login', {
+      const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: {
           'accept': '*/*',
@@ -37,18 +38,28 @@ const Login = () => {
       }
 
       // Store tokens in localStorage
-      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn } = data.responseStructure.data;
+      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn, isOnboarded } = data.responseStructure.data;
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('accessExpiresIn', String(accessExpiresIn));
       localStorage.setItem('refreshExpiresIn', String(refreshExpiresIn));
+      localStorage.setItem('isOnboarded', String(isOnboarded));
+
+      // Store token creation timestamp and start refresh timer
+      storeTokenTimestamp();
+      startTokenRefreshTimer();
 
       toast({
         title: "Success",
         description: data.responseStructure.toastMessage || "Login successful",
       });
 
-      navigate('/dashboard');
+      // Redirect based on onboarding status
+      if (isOnboarded) {
+        navigate('/dashboard');
+      } else {
+        navigate('/onboarding');
+      }
     } catch (error) {
       toast({
         title: "Login Failed",

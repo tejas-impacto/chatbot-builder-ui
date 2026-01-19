@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import OnboardingStepIndicator from "@/components/onboarding/OnboardingStepIndicator";
+import { useToast } from "@/hooks/use-toast";
+import { getValidAccessToken } from "@/lib/auth";
 import CompanyProfileStep from "@/components/onboarding/steps/CompanyProfileStep";
 import BotConfigurationStep from "@/components/onboarding/steps/BotConfigurationStep";
 import KnowledgeBaseStep from "@/components/onboarding/steps/KnowledgeBaseStep";
@@ -37,19 +39,25 @@ interface OnboardingData {
   region: string;
   companySize: string;
   monthlyCustomerInteractions: string;
-  typicalCustomerQueries: string[];
+  typicalCustomerQueries: Record<string, string>;
   // Bot Configuration (Step 2)
   commonQueries: string[];
   supportChannels: string[];
+  ticketingTool: string;
   supportEmail: string;
   supportPhone: string;
   regulations: string[];
   restrictedTopics: string;
-  botRestrictions: string[];
+  botRestrictions: string;
   enableLeadCapture: boolean;
   captureFields: string[];
   salesPriority: string;
-  handoffMethod: string[];
+  handoffMethod: string;
+  escalationPreference: string;
+  communicationStyle: string;
+  brandAdjectives: string[];
+  wordsToAvoid: string[];
+  secondaryAdminEmails: string[];
   notificationPreferences: {
     emailNotifications: boolean;
     smsNotifications: boolean;
@@ -68,23 +76,29 @@ const initialData: OnboardingData = {
   companyWebsite: "",
   businessDescription: "",
   primaryServices: [],
-  customerType: "",
+  customerType: "B2B",
   country: "",
   region: "",
   companySize: "",
   monthlyCustomerInteractions: "",
-  typicalCustomerQueries: [],
+  typicalCustomerQueries: {},
   commonQueries: [],
   supportChannels: [],
+  ticketingTool: "",
   supportEmail: "",
   supportPhone: "",
   regulations: [],
   restrictedTopics: "",
-  botRestrictions: [],
+  botRestrictions: "",
   enableLeadCapture: true,
-  captureFields: ["email"],
-  salesPriority: "medium",
-  handoffMethod: [],
+  captureFields: ["name", "email", "phone"],
+  salesPriority: "High",
+  handoffMethod: "Email",
+  escalationPreference: "Email",
+  communicationStyle: "Friendly",
+  brandAdjectives: [],
+  wordsToAvoid: [],
+  secondaryAdminEmails: [],
   notificationPreferences: {
     emailNotifications: true,
     smsNotifications: false,
@@ -97,8 +111,10 @@ const initialData: OnboardingData = {
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<OnboardingData>(initialData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateFormData = (data: Partial<OnboardingData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
@@ -116,9 +132,139 @@ const Onboarding = () => {
     }
   };
 
-  const handleFinish = () => {
-    console.log("Onboarding complete:", formData);
-    navigate("/");
+  const handleFinish = async () => {
+    setIsSubmitting(true);
+
+    try {
+      // Get valid access token (refreshes if expired)
+      const accessToken = await getValidAccessToken();
+
+      if (!accessToken) {
+        throw new Error('Session expired. Please login again.');
+      }
+
+      // Map form data to API structure (matching curl format)
+      const onboardingPayload = {
+        companyIdentity: {
+          legalCompanyName: formData.companyName,
+          brandDisplayName: formData.brandName,
+          industry: formData.industry,
+          companyWebsite: formData.companyWebsite,
+          companyDescription: formData.businessDescription,
+        },
+        primaryProductsServices: formData.primaryServices,
+        customerType: formData.customerType,
+        customerGeography: {
+          country: formData.country,
+          region: formData.region,
+        },
+        businessSize: {
+          employeesRange: formData.companySize,
+          monthlyCustomerInteractions: parseInt(formData.monthlyCustomerInteractions) || 0,
+        },
+        typicalCustomerQueries: formData.typicalCustomerQueries,
+        existingSupportChannels: {
+          phone: formData.supportChannels.includes("phone"),
+          email: formData.supportChannels.includes("email"),
+          whatsapp: formData.supportChannels.includes("whatsapp"),
+          ticketingTool: formData.ticketingTool,
+        },
+        escalationPreference: formData.escalationPreference,
+        gdprRequired: formData.regulations.includes("GDPR"),
+        restrictedTopics: formData.restrictedTopics,
+        mustNotInstructions: formData.botRestrictions,
+        isLeadCaptureRequired: formData.enableLeadCapture,
+        mandatoryLeadFields: {
+          name: formData.captureFields.includes("name"),
+          phone: formData.captureFields.includes("phone"),
+          email: formData.captureFields.includes("email"),
+        },
+        salesIntentPriority: formData.salesPriority,
+        salesHandoffMethod: formData.handoffMethod,
+        communicationStyle: formData.communicationStyle,
+        brandAdjectives: formData.brandAdjectives,
+        wordsToAvoid: formData.wordsToAvoid,
+        secondaryAdminEmails: formData.secondaryAdminEmails,
+        notificationPreferences: formData.notificationPreferences,
+      };
+
+      const response = await fetch('/api/v1/tenants/onboarding', {
+        method: 'POST',
+        headers: {
+          'accept': '*/*',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(onboardingPayload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Onboarding failed');
+      }
+
+      // Extract tenantId from response
+      const tenantId = data.responseStructure?.data?.tenantId;
+
+      // Upload documents if files are present and onboarding was successful
+      if (tenantId && formData.files && formData.files.length > 0) {
+        for (const file of formData.files) {
+          try {
+            // Create FormData for file upload
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', file);
+            uploadFormData.append('tenantId', tenantId);
+            uploadFormData.append('documentType', 'BUSINESS');
+            uploadFormData.append('documentName', 'Document');
+            uploadFormData.append('description', '');
+            uploadFormData.append('chatbotId', '');
+
+            const uploadResponse = await fetch(
+              `/api-doc/v1/documents/upload`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+                body: uploadFormData,
+              }
+            );
+
+            if (!uploadResponse.ok) {
+              console.error('Document upload failed for:', file.name);
+            } else {
+              console.log('Document uploaded successfully:', file.name);
+            }
+          } catch (uploadError) {
+            console.error('Error uploading document:', file.name, uploadError);
+          }
+        }
+      }
+
+      // Store tenantId in localStorage for future use
+      if (tenantId) {
+        localStorage.setItem('tenantId', tenantId);
+      }
+
+      // Update onboarding status in localStorage
+      localStorage.setItem('isOnboarded', 'true');
+
+      toast({
+        title: "Success",
+        description: data.responseStructure?.toastMessage || "Onboarding completed successfully!",
+      });
+
+      navigate("/dashboard");
+    } catch (error) {
+      toast({
+        title: "Onboarding Failed",
+        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStep = () => {
@@ -149,6 +295,7 @@ const Onboarding = () => {
             data={{
               commonQueries: formData.commonQueries,
               supportChannels: formData.supportChannels,
+              ticketingTool: formData.ticketingTool,
               supportEmail: formData.supportEmail,
               supportPhone: formData.supportPhone,
               regulations: formData.regulations,
@@ -158,6 +305,11 @@ const Onboarding = () => {
               captureFields: formData.captureFields,
               salesPriority: formData.salesPriority,
               handoffMethod: formData.handoffMethod,
+              escalationPreference: formData.escalationPreference,
+              communicationStyle: formData.communicationStyle,
+              brandAdjectives: formData.brandAdjectives,
+              wordsToAvoid: formData.wordsToAvoid,
+              secondaryAdminEmails: formData.secondaryAdminEmails,
               notificationPreferences: formData.notificationPreferences,
             }}
             onChange={updateFormData}
@@ -220,13 +372,21 @@ const Onboarding = () => {
             <button
               type="button"
               onClick={currentStep === 3 ? handleFinish : handleNext}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md hover:shadow-lg"
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {currentStep === 3 ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Launch Your Chatbot
-                </>
+                isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Launching...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Launch Your Chatbot
+                  </>
+                )
               ) : (
                 <>
                   Continue
