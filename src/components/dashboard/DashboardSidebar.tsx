@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { logout } from "@/lib/auth";
 import { 
   LayoutDashboard, 
   Database, 
@@ -99,7 +100,7 @@ const DashboardSidebar = () => {
   };
 
   const handleLogout = () => {
-    navigate("/login");
+    logout();
   };
 
   return (

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
@@ -13,6 +13,41 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Handle Google OAuth callback
+  useEffect(() => {
+    const accessToken = searchParams.get('accessToken');
+    const refreshToken = searchParams.get('refreshToken');
+    const accessExpiresIn = searchParams.get('accessExpiresIn');
+    const refreshExpiresIn = searchParams.get('refreshExpiresIn');
+    const isOnboarded = searchParams.get('isOnboarded');
+
+    if (accessToken && refreshToken) {
+      // Store tokens in localStorage
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      if (accessExpiresIn) localStorage.setItem('accessExpiresIn', accessExpiresIn);
+      if (refreshExpiresIn) localStorage.setItem('refreshExpiresIn', refreshExpiresIn);
+      localStorage.setItem('isOnboarded', isOnboarded || 'false');
+
+      // Store token creation timestamp and start refresh timer
+      storeTokenTimestamp();
+      startTokenRefreshTimer();
+
+      toast({
+        title: "Success",
+        description: "Login successful",
+      });
+
+      // Redirect based on onboarding status
+      if (isOnboarded === 'true') {
+        navigate('/dashboard');
+      } else {
+        navigate('/onboarding');
+      }
+    }
+  }, [searchParams, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
