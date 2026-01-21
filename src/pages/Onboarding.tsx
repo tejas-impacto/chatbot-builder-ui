@@ -750,6 +750,7 @@ IMPORTANT:
               companyName: formData.companyName,
               brandName: formData.brandName,
               industry: formData.industry,
+              otherIndustry: formData.otherIndustry,
               companyWebsite: formData.companyWebsite,
               businessDescription: formData.businessDescription,
               primaryServices: formData.primaryServices,
