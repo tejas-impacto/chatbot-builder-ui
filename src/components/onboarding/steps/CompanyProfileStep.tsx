@@ -23,6 +23,7 @@ interface CompanyProfileData {
   companyName: string;
   brandName: string;
   industry: string;
+  otherIndustry: string;
   companyWebsite: string;
   businessDescription: string;
   primaryServices: string[];
@@ -134,7 +135,7 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
               <button
                 key={industry}
                 type="button"
-                onClick={() => onChange({ industry })}
+                onClick={() => onChange({ industry, ...(industry !== 'Other' && { otherIndustry: '' }) })}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                   data.industry === industry
                     ? "bg-primary text-primary-foreground shadow-md"
@@ -145,6 +146,14 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
               </button>
             ))}
           </div>
+          {data.industry === 'Other' && (
+            <Input
+              value={data.otherIndustry || ''}
+              onChange={(e) => onChange({ otherIndustry: e.target.value })}
+              placeholder="Please specify your industry"
+              className="onboarding-input mt-2"
+            />
+          )}
         </div>
 
         <div className="space-y-2">
