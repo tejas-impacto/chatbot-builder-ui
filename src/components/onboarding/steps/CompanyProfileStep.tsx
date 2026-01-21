@@ -10,6 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+interface TypicalCustomerQueries {
+  pricing: boolean;
+  support: boolean;
+  troubleshooting: boolean;
+  sales: boolean;
+  policyCompliance: boolean;
+  customQueries: string[];
+}
+
 interface CompanyProfileData {
   companyName: string;
   brandName: string;
@@ -22,7 +31,7 @@ interface CompanyProfileData {
   region: string;
   companySize: string;
   monthlyCustomerInteractions: string;
-  typicalCustomerQueries: Record<string, string>;
+  typicalCustomerQueries: TypicalCustomerQueries;
 }
 
 interface CompanyProfileStepProps {
@@ -39,7 +48,15 @@ const companySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
 const countries = ["India", "USA", "UK", "Germany", "Australia", "Canada", "Other"];
 const regions = ["North America", "Europe", "Asia Pacific", "Middle East", "Africa", "Latin America"];
 const interactionVolumes = ["Less than 100", "100-500", "500-1000", "1000-5000", "5000+"];
-const queryTypes = ["Pricing", "Features", "Technical Support", "Account Issues", "Billing", "General Inquiries", "Product Demo", "Complaints"];
+
+// Map query types to their keys in the TypicalCustomerQueries interface
+const queryTypeOptions = [
+  { key: "pricing", label: "Pricing" },
+  { key: "support", label: "Support" },
+  { key: "troubleshooting", label: "Troubleshooting" },
+  { key: "sales", label: "Sales" },
+  { key: "policyCompliance", label: "Policy & Compliance" },
+] as const;
 
 const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite }: CompanyProfileStepProps) => {
   const toggleService = (service: string) => {
@@ -50,28 +67,26 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
     onChange({ primaryServices: updated });
   };
 
-  const toggleQuery = (query: string) => {
-    const current = data.typicalCustomerQueries || {};
-    const queryKey = query.toLowerCase().replace(/\s+/g, '_');
+  const toggleQuery = (queryKey: keyof Omit<TypicalCustomerQueries, 'customQueries'>) => {
+    const currentQueries = data.typicalCustomerQueries || {
+      pricing: false,
+      support: false,
+      troubleshooting: false,
+      sales: false,
+      policyCompliance: false,
+      customQueries: [],
+    };
 
-    if (current[queryKey]) {
-      // Remove the query
-      const { [queryKey]: _, ...rest } = current;
-      onChange({ typicalCustomerQueries: rest });
-    } else {
-      // Add the query with a default question
-      onChange({
-        typicalCustomerQueries: {
-          ...current,
-          [queryKey]: `What about ${query.toLowerCase()}?`
-        }
-      });
-    }
+    onChange({
+      typicalCustomerQueries: {
+        ...currentQueries,
+        [queryKey]: !currentQueries[queryKey],
+      }
+    });
   };
 
-  const isQuerySelected = (query: string) => {
-    const queryKey = query.toLowerCase().replace(/\s+/g, '_');
-    return !!data.typicalCustomerQueries?.[queryKey];
+  const isQuerySelected = (queryKey: keyof Omit<TypicalCustomerQueries, 'customQueries'>) => {
+    return data.typicalCustomerQueries?.[queryKey] || false;
   };
 
   return (
@@ -81,7 +96,7 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
           Brand Identity
         </h2>
-        
+
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="companyName" className="text-sm font-semibold text-foreground">
@@ -319,18 +334,18 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
           </Label>
           <p className="text-xs text-muted-foreground">Select all that apply</p>
           <div className="flex flex-wrap gap-2">
-            {queryTypes.map((query) => (
+            {queryTypeOptions.map((query) => (
               <button
-                key={query}
+                key={query.key}
                 type="button"
-                onClick={() => toggleQuery(query)}
+                onClick={() => toggleQuery(query.key)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  isQuerySelected(query)
+                  isQuerySelected(query.key)
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
                 }`}
               >
-                {query}
+                {query.label}
               </button>
             ))}
           </div>

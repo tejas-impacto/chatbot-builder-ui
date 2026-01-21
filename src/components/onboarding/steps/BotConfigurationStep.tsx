@@ -2,10 +2,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { TrendingUp, BarChart3, TrendingDown, Phone, Mail, MessageSquare } from "lucide-react";
+import { TrendingUp, BarChart3, TrendingDown, Phone, Mail, MessageSquare, Webhook } from "lucide-react";
 
 interface BotConfigurationData {
-  commonQueries: string[];
   supportChannels: string[];
   ticketingTool: string;
   supportEmail: string;
@@ -21,6 +20,7 @@ interface BotConfigurationData {
   communicationStyle: string;
   brandAdjectives: string[];
   wordsToAvoid: string[];
+  primaryAdminEmail: string;
   secondaryAdminEmails: string[];
   notificationPreferences: {
     emailNotifications: boolean;
@@ -34,11 +34,10 @@ interface BotConfigurationStepProps {
   onChange: (data: Partial<BotConfigurationData>) => void;
 }
 
-const queryTypes = ["Pricing Inquiries", "Technical Support", "Sales Questions", "Product Info", "Troubleshooting", "General FAQ"];
 const channels = [
   { id: "email", label: "Email", icon: Mail },
   { id: "phone", label: "Phone", icon: Phone },
-  { id: "chat", label: "Live Chat", icon: MessageSquare },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
 ];
 const regulations = ["GDPR", "HIPAA", "PCI-DSS", "SOC 2", "ISO 27001", "None"];
 const captureOptions = [
@@ -53,20 +52,22 @@ const priorityOptions = [
   { id: "Low", label: "Soft", icon: TrendingDown, desc: "Only when asked" },
 ];
 const handoffOptions = [
-  { id: "call", label: "Schedule Call", icon: Phone },
-  { id: "email", label: "Send Email", icon: Mail },
-  { id: "chat", label: "Live Transfer", icon: MessageSquare },
+  { id: "Call", label: "Schedule Call", icon: Phone },
+  { id: "Email", label: "Send Email", icon: Mail },
+  { id: "CRM", label: "Add to CRM", icon: Webhook },
+];
+const escalationOptions = [
+  { id: "Phone", label: "Phone" },
+  { id: "Ticket", label: "Ticket" },
+  { id: "Email", label: "Email" },
+];
+const communicationStyleOptions = [
+  { id: "Formal", label: "Formal", desc: "Professional and business-like" },
+  { id: "Semi-formal", label: "Semi-formal", desc: "Friendly but professional" },
+  { id: "Casual", label: "Casual", desc: "Relaxed and conversational" },
 ];
 
 const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => {
-  const toggleQuery = (query: string) => {
-    const current = data.commonQueries || [];
-    const updated = current.includes(query)
-      ? current.filter((q) => q !== query)
-      : [...current, query];
-    onChange({ commonQueries: updated });
-  };
-
   const toggleChannel = (channel: string) => {
     const current = data.supportChannels || [];
     const updated = current.includes(channel)
@@ -98,28 +99,6 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
           Customer Support Setup
         </h2>
-
-        <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
-            What do customers typically ask about? <span className="text-destructive">*</span>
-          </Label>
-          <div className="flex flex-wrap gap-2">
-            {queryTypes.map((query) => (
-              <button
-                key={query}
-                type="button"
-                onClick={() => toggleQuery(query)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  data.commonQueries?.includes(query)
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
-                }`}
-              >
-                {query}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="space-y-3">
           <Label className="text-sm font-semibold text-foreground">
@@ -161,6 +140,57 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
             />
           </div>
         )}
+
+        {data.supportChannels?.includes("phone") && (
+          <div className="space-y-2 animate-fade-in">
+            <Label htmlFor="supportPhone" className="text-sm font-semibold text-foreground">
+              Support Phone
+            </Label>
+            <Input
+              id="supportPhone"
+              type="tel"
+              value={data.supportPhone}
+              onChange={(e) => onChange({ supportPhone: e.target.value })}
+              placeholder="+1 (555) 123-4567"
+              className="onboarding-input"
+            />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="ticketingTool" className="text-sm font-semibold text-foreground">
+            Ticketing Tool (if any)
+          </Label>
+          <Input
+            id="ticketingTool"
+            value={data.ticketingTool}
+            onChange={(e) => onChange({ ticketingTool: e.target.value })}
+            placeholder="e.g., Zendesk, Freshdesk, Intercom..."
+            className="onboarding-input"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">
+            Escalation Preference <span className="text-destructive">*</span>
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {escalationOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onChange({ escalationPreference: option.id })}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                  data.escalationPreference === option.id
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Section 2: Compliance & Guardrails */}
@@ -302,10 +332,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => onChange({ handoffMethod: option.id === "call" ? "Webhook" : option.id === "email" ? "Email" : "Webhook" })}
+                      onClick={() => onChange({ handoffMethod: option.id })}
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                        (option.id === "email" && data.handoffMethod === "Email") ||
-                        (option.id !== "email" && data.handoffMethod === "Webhook")
+                        data.handoffMethod === option.id
                           ? "bg-primary text-primary-foreground shadow-md"
                           : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
                       }`}
@@ -321,11 +350,58 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         )}
       </div>
 
-      {/* Section 4: Notification Preferences */}
+      {/* Section 4: Communication Style */}
       <div className="space-y-5">
         <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
-          Notification Preferences
+          Communication Style
         </h2>
+
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">
+            Bot Communication Style <span className="text-destructive">*</span>
+          </Label>
+          <div className="grid md:grid-cols-3 gap-3">
+            {communicationStyleOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onChange({ communicationStyle: option.id })}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  data.communicationStyle === option.id
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
+                }`}
+              >
+                <span>{option.label}</span>
+                <span className={`text-xs text-center ${data.communicationStyle === option.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                  {option.desc}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Section 5: Admin & Notifications */}
+      <div className="space-y-5">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+          Admin & Notifications
+        </h2>
+
+        <div className="space-y-2">
+          <Label htmlFor="primaryAdminEmail" className="text-sm font-semibold text-foreground">
+            Primary Admin Email <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="primaryAdminEmail"
+            type="email"
+            value={data.primaryAdminEmail}
+            onChange={(e) => onChange({ primaryAdminEmail: e.target.value })}
+            placeholder="admin@yourcompany.com"
+            className="onboarding-input"
+          />
+          <p className="text-xs text-muted-foreground">Main contact for account notifications and alerts</p>
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
@@ -338,12 +414,12 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
             <Switch
               id="emailNotifications"
               checked={data.notificationPreferences?.emailNotifications}
-              onCheckedChange={(checked) => 
-                onChange({ 
-                  notificationPreferences: { 
-                    ...data.notificationPreferences, 
-                    emailNotifications: checked 
-                  } 
+              onCheckedChange={(checked) =>
+                onChange({
+                  notificationPreferences: {
+                    ...data.notificationPreferences,
+                    emailNotifications: checked
+                  }
                 })
               }
               className="data-[state=checked]:bg-primary"
@@ -360,12 +436,12 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
             <Switch
               id="smsNotifications"
               checked={data.notificationPreferences?.smsNotifications}
-              onCheckedChange={(checked) => 
-                onChange({ 
-                  notificationPreferences: { 
-                    ...data.notificationPreferences, 
-                    smsNotifications: checked 
-                  } 
+              onCheckedChange={(checked) =>
+                onChange({
+                  notificationPreferences: {
+                    ...data.notificationPreferences,
+                    smsNotifications: checked
+                  }
                 })
               }
               className="data-[state=checked]:bg-primary"
@@ -382,12 +458,12 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
             <Switch
               id="inAppNotifications"
               checked={data.notificationPreferences?.inAppNotifications}
-              onCheckedChange={(checked) => 
-                onChange({ 
-                  notificationPreferences: { 
-                    ...data.notificationPreferences, 
-                    inAppNotifications: checked 
-                  } 
+              onCheckedChange={(checked) =>
+                onChange({
+                  notificationPreferences: {
+                    ...data.notificationPreferences,
+                    inAppNotifications: checked
+                  }
                 })
               }
               className="data-[state=checked]:bg-primary"

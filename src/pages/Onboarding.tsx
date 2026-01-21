@@ -26,6 +26,15 @@ const stepDescriptions = [
   "Train your chatbot with your business documents",
 ];
 
+interface TypicalCustomerQueries {
+  pricing: boolean;
+  support: boolean;
+  troubleshooting: boolean;
+  sales: boolean;
+  policyCompliance: boolean;
+  customQueries: string[];
+}
+
 interface OnboardingData {
   // Company Profile (Step 1)
   companyName: string;
@@ -39,9 +48,8 @@ interface OnboardingData {
   region: string;
   companySize: string;
   monthlyCustomerInteractions: string;
-  typicalCustomerQueries: Record<string, string>;
+  typicalCustomerQueries: TypicalCustomerQueries;
   // Bot Configuration (Step 2)
-  commonQueries: string[];
   supportChannels: string[];
   ticketingTool: string;
   supportEmail: string;
@@ -57,6 +65,7 @@ interface OnboardingData {
   communicationStyle: string;
   brandAdjectives: string[];
   wordsToAvoid: string[];
+  primaryAdminEmail: string;
   secondaryAdminEmails: string[];
   notificationPreferences: {
     emailNotifications: boolean;
@@ -81,8 +90,14 @@ const initialData: OnboardingData = {
   region: "",
   companySize: "",
   monthlyCustomerInteractions: "",
-  typicalCustomerQueries: {},
-  commonQueries: [],
+  typicalCustomerQueries: {
+    pricing: false,
+    support: false,
+    troubleshooting: false,
+    sales: false,
+    policyCompliance: false,
+    customQueries: [],
+  },
   supportChannels: [],
   ticketingTool: "",
   supportEmail: "",
@@ -93,11 +108,12 @@ const initialData: OnboardingData = {
   enableLeadCapture: true,
   captureFields: ["name", "email", "phone"],
   salesPriority: "High",
-  handoffMethod: "Email",
-  escalationPreference: "Email",
-  communicationStyle: "Friendly",
+  handoffMethod: "Call",
+  escalationPreference: "Phone",
+  communicationStyle: "Semi-formal",
   brandAdjectives: [],
   wordsToAvoid: [],
+  primaryAdminEmail: "",
   secondaryAdminEmails: [],
   notificationPreferences: {
     emailNotifications: true,
@@ -347,7 +363,7 @@ const Onboarding = () => {
         throw new Error('Session expired. Please login again.');
       }
 
-      // Map form data to API structure (matching curl format)
+      // Map form data to API structure (matching backend schema)
       const onboardingPayload = {
         companyIdentity: {
           legalCompanyName: formData.companyName,
@@ -366,15 +382,28 @@ const Onboarding = () => {
           employeesRange: formData.companySize,
           monthlyCustomerInteractions: parseInt(formData.monthlyCustomerInteractions) || 0,
         },
-        typicalCustomerQueries: formData.typicalCustomerQueries,
+        typicalCustomerQueries: {
+          pricing: formData.typicalCustomerQueries.pricing,
+          support: formData.typicalCustomerQueries.support,
+          troubleshooting: formData.typicalCustomerQueries.troubleshooting,
+          sales: formData.typicalCustomerQueries.sales,
+          policyCompliance: formData.typicalCustomerQueries.policyCompliance,
+          customQueries: formData.typicalCustomerQueries.customQueries,
+        },
         existingSupportChannels: {
           phone: formData.supportChannels.includes("phone"),
           email: formData.supportChannels.includes("email"),
           whatsapp: formData.supportChannels.includes("whatsapp"),
-          ticketingTool: formData.ticketingTool,
+          ticketingTool: formData.ticketingTool || null,
+          supportEmail: formData.supportEmail || null,
+          supportPhone: formData.supportPhone || null,
         },
         escalationPreference: formData.escalationPreference,
         gdprRequired: formData.regulations.includes("GDPR"),
+        hipaaRequired: formData.regulations.includes("HIPAA"),
+        pciDssRequired: formData.regulations.includes("PCI-DSS"),
+        soc2Required: formData.regulations.includes("SOC 2"),
+        iso27001Required: formData.regulations.includes("ISO 27001"),
         restrictedTopics: formData.restrictedTopics,
         mustNotInstructions: formData.botRestrictions,
         isLeadCaptureRequired: formData.enableLeadCapture,
@@ -382,12 +411,14 @@ const Onboarding = () => {
           name: formData.captureFields.includes("name"),
           phone: formData.captureFields.includes("phone"),
           email: formData.captureFields.includes("email"),
+          company: formData.captureFields.includes("company"),
         },
         salesIntentPriority: formData.salesPriority,
         salesHandoffMethod: formData.handoffMethod,
         communicationStyle: formData.communicationStyle,
         brandAdjectives: formData.brandAdjectives,
         wordsToAvoid: formData.wordsToAvoid,
+        primaryAdminEmail: formData.primaryAdminEmail,
         secondaryAdminEmails: formData.secondaryAdminEmails,
         notificationPreferences: formData.notificationPreferences,
       };
@@ -500,7 +531,6 @@ const Onboarding = () => {
         return (
           <BotConfigurationStep
             data={{
-              commonQueries: formData.commonQueries,
               supportChannels: formData.supportChannels,
               ticketingTool: formData.ticketingTool,
               supportEmail: formData.supportEmail,
@@ -516,6 +546,7 @@ const Onboarding = () => {
               communicationStyle: formData.communicationStyle,
               brandAdjectives: formData.brandAdjectives,
               wordsToAvoid: formData.wordsToAvoid,
+              primaryAdminEmail: formData.primaryAdminEmail,
               secondaryAdminEmails: formData.secondaryAdminEmails,
               notificationPreferences: formData.notificationPreferences,
             }}
