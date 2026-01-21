@@ -8,6 +8,7 @@ import { startTokenRefreshTimer, isAuthenticated } from "@/lib/auth";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import GoogleCallback from "./pages/GoogleCallback";
 import Onboarding from "./pages/Onboarding";
 import BotCreation from "./pages/BotCreation";
 import BotCreationProgress from "./pages/BotCreationProgress";
@@ -39,6 +40,7 @@ const App = () => {
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/auth/google/callback" element={<GoogleCallback />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/bot-creation" element={<BotCreation />} />
           <Route path="/bot-creation-progress" element={<BotCreationProgress />} />

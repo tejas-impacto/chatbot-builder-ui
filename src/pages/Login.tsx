@@ -15,13 +15,14 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Handle Google OAuth callback
+  // Handle Google OAuth callback (when backend redirects with tokens in URL)
   useEffect(() => {
     const accessToken = searchParams.get('accessToken');
     const refreshToken = searchParams.get('refreshToken');
     const accessExpiresIn = searchParams.get('accessExpiresIn');
     const refreshExpiresIn = searchParams.get('refreshExpiresIn');
-    const isOnboarded = searchParams.get('isOnboarded');
+    const onboardingCompleted = searchParams.get('onboardingCompleted');
+    const documentUploaded = searchParams.get('documentUploaded');
 
     if (accessToken && refreshToken) {
       // Store tokens in localStorage
@@ -29,7 +30,8 @@ const Login = () => {
       localStorage.setItem('refreshToken', refreshToken);
       if (accessExpiresIn) localStorage.setItem('accessExpiresIn', accessExpiresIn);
       if (refreshExpiresIn) localStorage.setItem('refreshExpiresIn', refreshExpiresIn);
-      localStorage.setItem('isOnboarded', isOnboarded || 'false');
+      localStorage.setItem('isOnboarded', onboardingCompleted || 'false');
+      localStorage.setItem('documentUploaded', documentUploaded || 'false');
 
       // Store token creation timestamp and start refresh timer
       storeTokenTimestamp();
@@ -40,10 +42,14 @@ const Login = () => {
         description: "Login successful",
       });
 
-      // Redirect based on onboarding status
-      if (isOnboarded === 'true') {
+      // Redirect based on onboarding and document status
+      if (onboardingCompleted === 'true' && documentUploaded === 'true') {
         navigate('/dashboard');
+      } else if (onboardingCompleted === 'true' && documentUploaded !== 'true') {
+        // Onboarding done but documents not uploaded - go to step 3
+        navigate('/onboarding?step=3');
       } else {
+        // Onboarding not completed - start from beginning
         navigate('/onboarding');
       }
     }
@@ -73,12 +79,13 @@ const Login = () => {
       }
 
       // Store tokens in localStorage
-      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn, isOnboarded } = data.responseStructure.data;
+      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn, onboardingCompleted, documentUploaded } = data.responseStructure.data;
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('accessExpiresIn', String(accessExpiresIn));
       localStorage.setItem('refreshExpiresIn', String(refreshExpiresIn));
-      localStorage.setItem('isOnboarded', String(isOnboarded));
+      localStorage.setItem('isOnboarded', String(onboardingCompleted));
+      localStorage.setItem('documentUploaded', String(documentUploaded));
 
       // Store token creation timestamp and start refresh timer
       storeTokenTimestamp();
@@ -89,10 +96,14 @@ const Login = () => {
         description: data.responseStructure.toastMessage || "Login successful",
       });
 
-      // Redirect based on onboarding status
-      if (isOnboarded) {
+      // Redirect based on onboarding and document status
+      if (onboardingCompleted && documentUploaded) {
         navigate('/dashboard');
+      } else if (onboardingCompleted && !documentUploaded) {
+        // Onboarding done but documents not uploaded - go to step 3
+        navigate('/onboarding?step=3');
       } else {
+        // Onboarding not completed - start from beginning
         navigate('/onboarding');
       }
     } catch (error) {

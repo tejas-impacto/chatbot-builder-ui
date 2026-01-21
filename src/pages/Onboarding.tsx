@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import OnboardingStepIndicator from "@/components/onboarding/OnboardingStepIndicator";
 import { useToast } from "@/hooks/use-toast";
@@ -111,13 +111,217 @@ const initialData: OnboardingData = {
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<OnboardingData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScrapingWebsite, setIsScrapingWebsite] = useState(false);
+
+  // Check URL params for initial step (e.g., ?step=3 for document upload only)
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    if (stepParam) {
+      const step = parseInt(stepParam);
+      if (step >= 1 && step <= 3) {
+        setCurrentStep(step);
+      }
+    }
+  }, [searchParams]);
 
   const updateFormData = (data: Partial<OnboardingData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
+  };
+
+  const handleWebsiteScrape = async (url: string) => {
+    // Validate URL
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      return;
+    }
+
+    setIsScrapingWebsite(true);
+
+    try {
+      const response = await fetch('http://10.108.228.76:3002/v1/extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer fc-test',
+        },
+        body: JSON.stringify({
+          urls: [url],
+          prompt: "Extract ONLY factual information from this website. STRICT RULES: For monthlyCustomerInteractions and employeesRange fields - return null unless the website explicitly states the exact number. Do not invent any numbers.",
+          schema: {
+            type: "object",
+            properties: {
+              companyIdentity: {
+                type: "object",
+                properties: {
+                  legalCompanyName: { type: ["string", "null"] },
+                  brandDisplayName: { type: ["string", "null"] },
+                  industry: { type: ["string", "null"] },
+                  companyWebsite: { type: ["string", "null"] },
+                  companyDescription: { type: ["string", "null"] }
+                }
+              },
+              primaryProductsServices: {
+                type: "array",
+                items: { type: "string" }
+              },
+              customerType: {
+                type: ["string", "null"],
+                enum: ["B2B", "B2C", "Both", null]
+              },
+              customerGeography: {
+                type: "object",
+                properties: {
+                  country: { type: ["string", "null"] },
+                  region: { type: ["string", "null"] }
+                }
+              },
+              existingSupportChannels: {
+                type: "object",
+                properties: {
+                  phone: { type: ["boolean", "null"] },
+                  email: { type: ["boolean", "null"] },
+                  whatsapp: { type: ["boolean", "null"] }
+                }
+              },
+              communicationStyle: { type: ["string", "null"] },
+              brandAdjectives: {
+                type: "array",
+                items: { type: "string" }
+              }
+            }
+          }
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result && result.data) {
+        const scraped = result.data;
+
+        // Helper functions to map API values to form options
+        const mapCountry = (country: string): string => {
+          const countryMap: Record<string, string> = {
+            'United States': 'USA',
+            'United States of America': 'USA',
+            'US': 'USA',
+            'United Kingdom': 'UK',
+            'Britain': 'UK',
+            'Great Britain': 'UK',
+          };
+          return countryMap[country] || country;
+        };
+
+        const mapRegion = (region: string): string => {
+          const regionLower = region.toLowerCase();
+          if (regionLower.includes('north america') || regionLower.includes('northeast') || regionLower.includes('new england')) {
+            return 'North America';
+          }
+          if (regionLower.includes('europe')) return 'Europe';
+          if (regionLower.includes('asia') || regionLower.includes('pacific')) return 'Asia Pacific';
+          if (regionLower.includes('middle east')) return 'Middle East';
+          if (regionLower.includes('africa')) return 'Africa';
+          if (regionLower.includes('latin') || regionLower.includes('south america')) return 'Latin America';
+          return region;
+        };
+
+        const mapIndustry = (industry: string): string => {
+          const industryLower = industry.toLowerCase();
+          if (industryLower.includes('health') || industryLower.includes('medical')) return 'HealthTech';
+          if (industryLower.includes('tech') || industryLower.includes('software') || industryLower.includes('it')) return 'Technology';
+          if (industryLower.includes('finance') || industryLower.includes('bank') || industryLower.includes('insurance')) return 'Finance';
+          if (industryLower.includes('fintech')) return 'Fintech';
+          if (industryLower.includes('design') || industryLower.includes('creative')) return 'Design';
+          if (industryLower.includes('education') || industryLower.includes('learning')) return 'Education';
+          if (industryLower.includes('manufacturing') || industryLower.includes('construction') || industryLower.includes('industrial')) return 'Manufacturing';
+          return 'Other';
+        };
+
+        const mapServices = (services: string[]): string[] => {
+          const validServices = ['SaaS', 'Consulting', 'E-commerce', 'Healthcare', 'FinTech', 'EdTech'];
+          const mapped: string[] = [];
+          services.forEach(service => {
+            const serviceLower = service.toLowerCase();
+            if (serviceLower.includes('saas') || serviceLower.includes('software')) mapped.push('SaaS');
+            if (serviceLower.includes('consult')) mapped.push('Consulting');
+            if (serviceLower.includes('commerce') || serviceLower.includes('retail')) mapped.push('E-commerce');
+            if (serviceLower.includes('health') || serviceLower.includes('medical')) mapped.push('Healthcare');
+            if (serviceLower.includes('fintech') || serviceLower.includes('finance')) mapped.push('FinTech');
+            if (serviceLower.includes('education') || serviceLower.includes('learning')) mapped.push('EdTech');
+          });
+          return [...new Set(mapped)]; // Remove duplicates
+        };
+
+        // Map scraped data to ALL form fields across steps
+        const updates: Partial<OnboardingData> = {};
+
+        // Step 1: Company Profile fields
+        if (scraped.companyIdentity?.legalCompanyName) {
+          updates.companyName = scraped.companyIdentity.legalCompanyName;
+        }
+        if (scraped.companyIdentity?.brandDisplayName) {
+          updates.brandName = scraped.companyIdentity.brandDisplayName;
+        }
+        if (scraped.companyIdentity?.industry) {
+          updates.industry = mapIndustry(scraped.companyIdentity.industry);
+        }
+        if (scraped.companyIdentity?.companyDescription) {
+          updates.businessDescription = scraped.companyIdentity.companyDescription;
+        }
+        if (scraped.primaryProductsServices?.length > 0) {
+          const mappedServices = mapServices(scraped.primaryProductsServices);
+          if (mappedServices.length > 0) {
+            updates.primaryServices = mappedServices;
+          }
+        }
+        if (scraped.customerType) {
+          updates.customerType = scraped.customerType;
+        }
+        if (scraped.customerGeography?.country) {
+          updates.country = mapCountry(scraped.customerGeography.country);
+        }
+        if (scraped.customerGeography?.region) {
+          updates.region = mapRegion(scraped.customerGeography.region);
+        }
+
+        // Step 2: Bot Configuration fields
+        if (scraped.existingSupportChannels) {
+          const channels: string[] = [];
+          if (scraped.existingSupportChannels.phone) channels.push('phone');
+          if (scraped.existingSupportChannels.email) channels.push('email');
+          if (scraped.existingSupportChannels.whatsapp) channels.push('chat');
+          if (channels.length > 0) {
+            updates.supportChannels = channels;
+          }
+        }
+        if (scraped.communicationStyle) {
+          updates.communicationStyle = scraped.communicationStyle;
+        }
+        if (scraped.brandAdjectives?.length > 0) {
+          updates.brandAdjectives = scraped.brandAdjectives;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          setFormData((prev) => ({ ...prev, ...updates }));
+          toast({
+            title: "Auto-filled",
+            description: "Company information extracted from website",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Website scraping failed:', error);
+      toast({
+        title: "Extraction Failed",
+        description: "Could not extract information from website",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScrapingWebsite(false);
+    }
   };
 
   const handleNext = () => {
@@ -209,36 +413,37 @@ const Onboarding = () => {
 
       // Upload documents if files are present and onboarding was successful
       if (tenantId && formData.files && formData.files.length > 0) {
-        for (const file of formData.files) {
-          try {
-            // Create FormData for file upload
-            const uploadFormData = new FormData();
-            uploadFormData.append('file', file);
-            uploadFormData.append('tenantId', tenantId);
-            uploadFormData.append('documentType', 'BUSINESS');
-            uploadFormData.append('documentName', 'Document');
-            uploadFormData.append('description', '');
-            uploadFormData.append('chatbotId', '');
+        try {
+          const uploadFormData = new FormData();
 
-            const uploadResponse = await fetch(
-              `/api-doc/v1/documents/upload`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                },
-                body: uploadFormData,
-              }
-            );
-
-            if (!uploadResponse.ok) {
-              console.error('Document upload failed for:', file.name);
-            } else {
-              console.log('Document uploaded successfully:', file.name);
-            }
-          } catch (uploadError) {
-            console.error('Error uploading document:', file.name, uploadError);
+          // Append all files with the same key 'files'
+          for (const file of formData.files) {
+            uploadFormData.append('files', file);
           }
+
+          uploadFormData.append('tenantId', tenantId);
+          uploadFormData.append('documentType', 'BUSINESS');
+          uploadFormData.append('chatbotId', '');
+          uploadFormData.append('description', formData.documentDescription || '');
+
+          const uploadResponse = await fetch(
+            `/api/v1/documents/upload/multiple`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+              },
+              body: uploadFormData,
+            }
+          );
+
+          if (!uploadResponse.ok) {
+            console.error('Document upload failed');
+          } else {
+            console.log('Documents uploaded successfully');
+          }
+        } catch (uploadError) {
+          console.error('Error uploading documents:', uploadError);
         }
       }
 
@@ -287,6 +492,8 @@ const Onboarding = () => {
               typicalCustomerQueries: formData.typicalCustomerQueries,
             }}
             onChange={updateFormData}
+            onWebsiteScrape={handleWebsiteScrape}
+            isScrapingWebsite={isScrapingWebsite}
           />
         );
       case 2:

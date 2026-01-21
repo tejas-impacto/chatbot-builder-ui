@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,8 @@ interface CompanyProfileData {
 interface CompanyProfileStepProps {
   data: CompanyProfileData;
   onChange: (data: Partial<CompanyProfileData>) => void;
+  onWebsiteScrape: (url: string) => void;
+  isScrapingWebsite: boolean;
 }
 
 const industries = ["HealthTech", "Technology", "Finance", "Design", "Education", "Fintech", "Manufacturing", "Other"];
@@ -38,7 +41,7 @@ const regions = ["North America", "Europe", "Asia Pacific", "Middle East", "Afri
 const interactionVolumes = ["Less than 100", "100-500", "500-1000", "1000-5000", "5000+"];
 const queryTypes = ["Pricing", "Features", "Technical Support", "Account Issues", "Billing", "General Inquiries", "Product Demo", "Complaints"];
 
-const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
+const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite }: CompanyProfileStepProps) => {
   const toggleService = (service: string) => {
     const current = data.primaryServices || [];
     const updated = current.includes(service)
@@ -133,13 +136,25 @@ const CompanyProfileStep = ({ data, onChange }: CompanyProfileStepProps) => {
           <Label htmlFor="companyWebsite" className="text-sm font-semibold text-foreground">
             Website URL
           </Label>
-          <Input
-            id="companyWebsite"
-            value={data.companyWebsite}
-            onChange={(e) => onChange({ companyWebsite: e.target.value })}
-            placeholder="https://yourcompany.com"
-            className="onboarding-input"
-          />
+          <div className="relative">
+            <Input
+              id="companyWebsite"
+              value={data.companyWebsite}
+              onChange={(e) => onChange({ companyWebsite: e.target.value })}
+              onBlur={(e) => onWebsiteScrape(e.target.value)}
+              placeholder="https://yourcompany.com"
+              className="onboarding-input"
+              disabled={isScrapingWebsite}
+            />
+            {isScrapingWebsite && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+          {isScrapingWebsite && (
+            <p className="text-xs text-muted-foreground">Extracting company information...</p>
+          )}
         </div>
 
         <div className="space-y-2">
