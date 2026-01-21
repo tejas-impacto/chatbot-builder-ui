@@ -42,14 +42,17 @@ const Login = () => {
         description: "Login successful",
       });
 
-      // Redirect based on onboarding and document status
-      if (onboardingCompleted === 'true' && documentUploaded === 'true') {
+      // Redirect based on onboarding status
+      // If onboarding is not completed, clear any previous skip flag (could be from different user)
+      if (onboardingCompleted !== 'true') {
+        localStorage.removeItem('onboardingSkipped');
+      }
+
+      const previouslySkipped = localStorage.getItem('onboardingSkipped') === 'true';
+
+      if (onboardingCompleted === 'true' || previouslySkipped) {
         navigate('/dashboard');
-      } else if (onboardingCompleted === 'true' && documentUploaded !== 'true') {
-        // Onboarding done but documents not uploaded - go to step 3
-        navigate('/onboarding?step=3');
       } else {
-        // Onboarding not completed - start from beginning
         navigate('/onboarding');
       }
     }
@@ -96,14 +99,19 @@ const Login = () => {
         description: data.responseStructure.toastMessage || "Login successful",
       });
 
-      // Redirect based on onboarding and document status
-      if (onboardingCompleted && documentUploaded) {
+      // Redirect based on onboarding status
+      const isOnboardingCompleted = onboardingCompleted === true || onboardingCompleted === 'true';
+
+      // If onboarding is not completed, clear any previous skip flag (could be from different user)
+      if (!isOnboardingCompleted) {
+        localStorage.removeItem('onboardingSkipped');
+      }
+
+      const previouslySkipped = localStorage.getItem('onboardingSkipped') === 'true';
+
+      if (isOnboardingCompleted || previouslySkipped) {
         navigate('/dashboard');
-      } else if (onboardingCompleted && !documentUploaded) {
-        // Onboarding done but documents not uploaded - go to step 3
-        navigate('/onboarding?step=3');
       } else {
-        // Onboarding not completed - start from beginning
         navigate('/onboarding');
       }
     } catch (error) {

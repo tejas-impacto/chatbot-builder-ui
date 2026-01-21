@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, SkipForward } from "lucide-react";
 import OnboardingStepIndicator from "@/components/onboarding/OnboardingStepIndicator";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken } from "@/lib/auth";
@@ -10,13 +10,13 @@ import KnowledgeBaseStep from "@/components/onboarding/steps/KnowledgeBaseStep";
 
 const steps = [
   { id: 1, title: "Company Profile" },
-  { id: 2, title: "Bot Configuration" },
+  { id: 2, title: "Business Configuration" },
   { id: 3, title: "Knowledge Base" },
 ];
 
 const stepTitles = [
   "Tell Us About Your Business",
-  "Configure Your AI Assistant",
+  "Configure Your Business Settings",
   "Upload Your Knowledge Base",
 ];
 
@@ -108,7 +108,7 @@ const initialData: OnboardingData = {
   enableLeadCapture: true,
   captureFields: ["name", "email", "phone"],
   salesPriority: "High",
-  handoffMethod: "Call",
+  handoffMethod: "Email",
   escalationPreference: "Phone",
   communicationStyle: "Semi-formal",
   brandAdjectives: [],
@@ -458,7 +458,7 @@ const Onboarding = () => {
           uploadFormData.append('description', formData.documentDescription || '');
 
           const uploadResponse = await fetch(
-            `/api/v1/documents/upload/multiple`,
+            `/api-doc/v1/documents/upload/multiple`,
             {
               method: 'POST',
               headers: {
@@ -617,12 +617,12 @@ const Onboarding = () => {
                 isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Launching...
+                    Finishing...
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    Launch Your Chatbot
+                    Finish Onboarding
                   </>
                 )
               ) : (
@@ -632,6 +632,21 @@ const Onboarding = () => {
                 </>
               )}
             </button>
+
+            {/* Skip Button - Only show on first step */}
+            {currentStep === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('onboardingSkipped', 'true');
+                  navigate('/dashboard');
+                }}
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
+              >
+                <SkipForward className="w-4 h-4" />
+                Skip for now
+              </button>
+            )}
           </div>
         </div>
       </div>

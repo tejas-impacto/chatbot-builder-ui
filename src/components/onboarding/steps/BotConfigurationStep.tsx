@@ -52,9 +52,11 @@ const priorityOptions = [
   { id: "Low", label: "Soft", icon: TrendingDown, desc: "Only when asked" },
 ];
 const handoffOptions = [
-  { id: "Call", label: "Schedule Call", icon: Phone },
   { id: "Email", label: "Send Email", icon: Mail },
   { id: "CRM", label: "Add to CRM", icon: Webhook },
+  { id: "Ticket", label: "Create Ticket", icon: MessageSquare },
+  { id: "Webhook", label: "Webhook", icon: Webhook },
+  { id: "Manual", label: "Manual Handoff", icon: Phone },
 ];
 const escalationOptions = [
   { id: "Phone", label: "Phone" },
