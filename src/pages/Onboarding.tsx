@@ -100,7 +100,7 @@ const initialData: OnboardingData = {
     policyCompliance: false,
     customQueries: [],
   },
-  supportChannels: [],
+  supportChannels: ["email", "phone"],
   ticketingTool: "",
   supportEmail: "",
   supportPhone: "",
@@ -578,8 +578,11 @@ IMPORTANT:
     }
   };
 
-  const handleNext = () => {
-    if (currentStep < 3) {
+  const handleNext = async () => {
+    if (currentStep === 2) {
+      // On step 2, submit onboarding data before moving to step 3
+      await handleSubmitOnboarding();
+    } else if (currentStep < 3) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -590,7 +593,8 @@ IMPORTANT:
     }
   };
 
-  const handleFinish = async () => {
+  // Submit onboarding data (called when moving from step 2 to step 3)
+  const handleSubmitOnboarding = async () => {
     setIsSubmitting(true);
 
     try {
@@ -601,47 +605,65 @@ IMPORTANT:
         throw new Error('Session expired. Please login again.');
       }
 
+      // Get tenantId from localStorage (will be empty for new users)
+      const storedTenantId = localStorage.getItem('tenantId') || '';
+
+      // Build typicalCustomerQueries as key-value object
+      const typicalCustomerQueriesObj: Record<string, string> = {};
+      if (formData.typicalCustomerQueries.pricing) typicalCustomerQueriesObj.pricing = 'true';
+      if (formData.typicalCustomerQueries.support) typicalCustomerQueriesObj.support = 'true';
+      if (formData.typicalCustomerQueries.troubleshooting) typicalCustomerQueriesObj.troubleshooting = 'true';
+      if (formData.typicalCustomerQueries.sales) typicalCustomerQueriesObj.sales = 'true';
+      if (formData.typicalCustomerQueries.policyCompliance) typicalCustomerQueriesObj.policyCompliance = 'true';
+      formData.typicalCustomerQueries.customQueries.forEach((query, index) => {
+        typicalCustomerQueriesObj[`customQuery${index + 1}`] = query;
+      });
+
+      // Map monthlyCustomerInteractions to a number
+      const interactionMap: Record<string, number> = {
+        'Less than 100': 50,
+        '100-500': 300,
+        '500-1000': 750,
+        '1000-5000': 3000,
+        '5000+': 5000,
+      };
+      const monthlyInteractions = interactionMap[formData.monthlyCustomerInteractions] || 0;
+
       // Map form data to API structure (matching backend schema)
       const onboardingPayload = {
+        tenantId: storedTenantId,
         companyIdentity: {
           legalCompanyName: formData.companyName,
           brandDisplayName: formData.brandName,
-          industry: formData.industry,
+          industry: formData.industry === 'Other' ? formData.otherIndustry : formData.industry,
           companyWebsite: formData.companyWebsite,
           companyDescription: formData.businessDescription,
         },
         primaryProductsServices: formData.primaryServices,
-        customerType: formData.customerType,
+        customerType: formData.customerType === 'Both' ? 'B2B2C' : formData.customerType,
         customerGeography: {
           country: formData.country,
           region: formData.region,
         },
         businessSize: {
           employeesRange: formData.companySize,
-          monthlyCustomerInteractions: parseInt(formData.monthlyCustomerInteractions) || 0,
+          monthlyCustomerInteractions: monthlyInteractions,
         },
-        typicalCustomerQueries: {
-          pricing: formData.typicalCustomerQueries.pricing,
-          support: formData.typicalCustomerQueries.support,
-          troubleshooting: formData.typicalCustomerQueries.troubleshooting,
-          sales: formData.typicalCustomerQueries.sales,
-          policyCompliance: formData.typicalCustomerQueries.policyCompliance,
-          customQueries: formData.typicalCustomerQueries.customQueries,
-        },
+        typicalCustomerQueries: typicalCustomerQueriesObj,
         existingSupportChannels: {
           phone: formData.supportChannels.includes("phone"),
           email: formData.supportChannels.includes("email"),
           whatsapp: formData.supportChannels.includes("whatsapp"),
-          ticketingTool: formData.ticketingTool || null,
-          supportEmail: formData.supportEmail || null,
-          supportPhone: formData.supportPhone || null,
+          ticketingTool: formData.ticketingTool || '',
+          supportEmail: formData.supportEmail || '',
+          supportPhone: formData.supportPhone || '',
         },
         escalationPreference: formData.escalationPreference,
         gdprRequired: formData.regulations.includes("GDPR"),
-        hipaaRequired: formData.regulations.includes("HIPAA"),
-        pciDssRequired: formData.regulations.includes("PCI-DSS"),
-        soc2Required: formData.regulations.includes("SOC 2"),
-        iso27001Required: formData.regulations.includes("ISO 27001"),
+        hippa: formData.regulations.includes("HIPAA"),
+        pcidss: formData.regulations.includes("PCI-DSS"),
+        soc2: formData.regulations.includes("SOC 2"),
+        iso27001: formData.regulations.includes("ISO 27001"),
         restrictedTopics: formData.restrictedTopics,
         mustNotInstructions: formData.botRestrictions,
         isLeadCaptureRequired: formData.enableLeadCapture,
@@ -656,9 +678,13 @@ IMPORTANT:
         communicationStyle: formData.communicationStyle,
         brandAdjectives: formData.brandAdjectives,
         wordsToAvoid: formData.wordsToAvoid,
-        primaryAdminEmail: formData.primaryAdminEmail,
+        primaryAdminEmail: formData.primaryAdminEmail || '',
         secondaryAdminEmails: formData.secondaryAdminEmails,
-        notificationPreferences: formData.notificationPreferences,
+        notificationPreferences: {
+          emailNotifications: formData.notificationPreferences.emailNotifications,
+          smsNotifications: formData.notificationPreferences.smsNotifications,
+          inAppNotifications: formData.notificationPreferences.inAppNotifications,
+        },
       };
 
       const response = await fetch('/api/v1/tenants/onboarding', {
@@ -677,46 +703,8 @@ IMPORTANT:
         throw new Error(data.message || 'Onboarding failed');
       }
 
-      // Extract tenantId from response
+      // Extract tenantId from response and store it
       const tenantId = data.responseStructure?.data?.tenantId;
-
-      // Upload documents if files are present and onboarding was successful
-      if (tenantId && formData.files && formData.files.length > 0) {
-        try {
-          const uploadFormData = new FormData();
-
-          // Append all files with the same key 'files'
-          for (const file of formData.files) {
-            uploadFormData.append('files', file);
-          }
-
-          uploadFormData.append('tenantId', tenantId);
-          uploadFormData.append('documentType', 'BUSINESS');
-          uploadFormData.append('chatbotId', '');
-          uploadFormData.append('description', formData.documentDescription || '');
-
-          const uploadResponse = await fetch(
-            `/api-doc/v1/documents/upload/multiple`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-              },
-              body: uploadFormData,
-            }
-          );
-
-          if (!uploadResponse.ok) {
-            console.error('Document upload failed');
-          } else {
-            console.log('Documents uploaded successfully');
-          }
-        } catch (uploadError) {
-          console.error('Error uploading documents:', uploadError);
-        }
-      }
-
-      // Store tenantId in localStorage for future use
       if (tenantId) {
         localStorage.setItem('tenantId', tenantId);
       }
@@ -726,13 +714,90 @@ IMPORTANT:
 
       toast({
         title: "Success",
-        description: data.responseStructure?.toastMessage || "Onboarding completed successfully!",
+        description: "Business information saved successfully!",
+      });
+
+      // Move to step 3 (document upload)
+      setCurrentStep(3);
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Upload documents and finish onboarding (called on step 3)
+  const handleFinish = async () => {
+    setIsSubmitting(true);
+
+    try {
+      const tenantId = localStorage.getItem('tenantId');
+
+      // If no files to upload, just navigate to dashboard
+      if (!formData.files || formData.files.length === 0) {
+        toast({
+          title: "Success",
+          description: "Onboarding completed successfully!",
+        });
+        navigate("/dashboard");
+        return;
+      }
+
+      // Get valid access token (refreshes if expired)
+      const accessToken = await getValidAccessToken();
+
+      if (!accessToken) {
+        throw new Error('Session expired. Please login again.');
+      }
+
+      if (!tenantId) {
+        throw new Error('Tenant ID not found. Please go back and complete the previous steps.');
+      }
+
+      // Upload documents
+      const uploadFormData = new FormData();
+
+      // Append all files with the same key 'files'
+      for (const file of formData.files) {
+        uploadFormData.append('files', file);
+      }
+
+      uploadFormData.append('tenantId', tenantId);
+      uploadFormData.append('documentType', 'BUSINESS');
+      uploadFormData.append('chatbotId', '');
+      uploadFormData.append('description', formData.documentDescription || '');
+
+      const uploadResponse = await fetch(
+        `/api-doc/v1/documents/upload/multiple`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: uploadFormData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        throw new Error('Document upload failed');
+      }
+
+      // Update document uploaded status
+      localStorage.setItem('documentUploaded', 'true');
+
+      toast({
+        title: "Success",
+        description: "Onboarding completed successfully!",
       });
 
       navigate("/dashboard");
     } catch (error) {
       toast({
-        title: "Onboarding Failed",
+        title: "Upload Failed",
         description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
         variant: "destructive",
       });

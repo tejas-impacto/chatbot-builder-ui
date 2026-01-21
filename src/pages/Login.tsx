@@ -23,6 +23,7 @@ const Login = () => {
     const refreshExpiresIn = searchParams.get('refreshExpiresIn');
     const onboardingCompleted = searchParams.get('onboardingCompleted');
     const documentUploaded = searchParams.get('documentUploaded');
+    const tenantId = searchParams.get('tenantId');
 
     if (accessToken && refreshToken) {
       // Store tokens in localStorage
@@ -32,6 +33,12 @@ const Login = () => {
       if (refreshExpiresIn) localStorage.setItem('refreshExpiresIn', refreshExpiresIn);
       localStorage.setItem('isOnboarded', onboardingCompleted || 'false');
       localStorage.setItem('documentUploaded', documentUploaded || 'false');
+      // Store tenantId if available (will be present for existing users with completed onboarding)
+      if (tenantId) {
+        localStorage.setItem('tenantId', tenantId);
+      } else {
+        localStorage.removeItem('tenantId');
+      }
 
       // Store token creation timestamp and start refresh timer
       storeTokenTimestamp();
@@ -82,13 +89,19 @@ const Login = () => {
       }
 
       // Store tokens in localStorage
-      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn, onboardingCompleted, documentUploaded } = data.responseStructure.data;
+      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn, onboardingCompleted, documentUploaded, tenantId } = data.responseStructure.data;
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('accessExpiresIn', String(accessExpiresIn));
       localStorage.setItem('refreshExpiresIn', String(refreshExpiresIn));
       localStorage.setItem('isOnboarded', String(onboardingCompleted));
       localStorage.setItem('documentUploaded', String(documentUploaded));
+      // Store tenantId if available (will be present for existing users with completed onboarding)
+      if (tenantId) {
+        localStorage.setItem('tenantId', tenantId);
+      } else {
+        localStorage.removeItem('tenantId');
+      }
 
       // Store token creation timestamp and start refresh timer
       storeTokenTimestamp();
