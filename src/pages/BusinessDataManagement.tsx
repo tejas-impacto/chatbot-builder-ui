@@ -1,30 +1,150 @@
-import { useState } from "react";
-import { Upload, Search, FileText, Eye, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Upload, Search, FileText, Eye, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { useToast } from "@/hooks/use-toast";
+import { getValidAccessToken } from "@/lib/auth";
 
 interface UploadedFile {
-  id: number;
+  id: string;
   name: string;
   size: string;
   uploadDate: string;
   type: string;
+  downloadUrl: string;
 }
+
+interface ApiDocument {
+  id: string;
+  tenantId: string;
+  chatbotId: string;
+  documentType: string;
+  fileName: string;
+  originalFileName: string;
+  description: string;
+  mimeType: string;
+  size: number;
+  metadata: Record<string, unknown>;
+  downloadUrl: string;
+}
+
+// Helper to get file extension from mimeType or filename
+const getFileExtension = (mimeType: string, fileName: string): string => {
+  const mimeToExt: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+  };
+
+  if (mimeToExt[mimeType]) return mimeToExt[mimeType];
+
+  // Fallback to filename extension
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ext || 'file';
+};
+
+// Helper to format file size
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// Helper to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = error => reject(error);
+  });
+};
 
 const BusinessDataManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [documents, setDocuments] = useState<UploadedFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadedFiles: UploadedFile[] = [
-    { id: 1, name: "Product Catalog 2024.pdf", size: "2.4 MB", uploadDate: "Dec 20, 2024", type: "pdf" },
-    { id: 2, name: "User Guide 2024.docx", size: "1.2 MB", uploadDate: "Jan 15, 2024", type: "docx" },
-    { id: 3, name: "Marketing Strategy 2024.pptx", size: "3.5 MB", uploadDate: "Feb 10, 2024", type: "pptx" },
-    { id: 4, name: "Sales Report Q1 2024.xlsx", size: "850 KB", uploadDate: "Mar 5, 2024", type: "xlsx" },
-    { id: 5, name: "Project Timeline 2024.gantt", size: "500 KB", uploadDate: "Apr 1, 2024", type: "gantt" },
-  ];
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      const tenantId = localStorage.getItem('tenantId');
+
+      if (!tenantId) {
+        setLoading(false);
+        setError('No tenant ID found');
+        return;
+      }
+
+      try {
+        const accessToken = await getValidAccessToken();
+
+        if (!accessToken) {
+          setLoading(false);
+          setError('Session expired. Please login again.');
+          return;
+        }
+
+        const response = await fetch(
+          `/api-doc/v1/documents?tenantId=${tenantId}&documentType=BUSINESS&page=0&size=20&sortBy=createdAt&sortDir=desc`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch documents');
+        }
+
+        const result = await response.json();
+
+        // Map API response to UploadedFile format
+        const mappedDocs: UploadedFile[] = (result.data || []).map((doc: ApiDocument) => ({
+          id: doc.id,
+          name: doc.originalFileName || doc.fileName,
+          size: formatFileSize(doc.size),
+          uploadDate: 'Recently uploaded',
+          type: getFileExtension(doc.mimeType, doc.originalFileName || doc.fileName),
+          downloadUrl: doc.downloadUrl,
+        }));
+
+        setDocuments(mappedDocs);
+      } catch (err) {
+        console.error('Error fetching documents:', err);
+        setError('Failed to load documents');
+        toast({
+          title: "Error",
+          description: "Failed to load documents. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [toast]);
 
   const getFileColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -51,12 +171,181 @@ const BusinessDataManagement = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    // Handle file drop
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleUploadFiles(Array.from(files));
+    }
   };
 
-  const filteredFiles = uploadedFiles.filter(file =>
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleUploadFiles(Array.from(files));
+    }
+    // Reset input value to allow selecting the same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleUploadFiles = async (files: File[]) => {
+    const tenantId = localStorage.getItem('tenantId');
+
+    if (!tenantId) {
+      toast({
+        title: "Error",
+        description: "No tenant ID found. Please login again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const accessToken = await getValidAccessToken();
+
+    if (!accessToken) {
+      toast({
+        title: "Error",
+        description: "Session expired. Please login again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+
+    for (const file of files) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "Error",
+          description: `File "${file.name}" exceeds 10MB limit.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      try {
+        const base64File = await fileToBase64(file);
+
+        const response = await fetch(
+          `/api-doc/v1/documents/upload?tenantId=${tenantId}&documentType=BUSINESS&documentName=${encodeURIComponent(file.name)}`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'accept': '*/*',
+            },
+            body: JSON.stringify({ file: base64File }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Upload failed');
+        }
+
+        const result = await response.json();
+        const uploadedDoc = result.response?.data;
+
+        if (uploadedDoc) {
+          // Add the new document to the list
+          const newDoc: UploadedFile = {
+            id: uploadedDoc.id,
+            name: uploadedDoc.originalFileName || uploadedDoc.fileName,
+            size: formatFileSize(uploadedDoc.size),
+            uploadDate: 'Just now',
+            type: getFileExtension(uploadedDoc.mimeType, uploadedDoc.originalFileName || uploadedDoc.fileName),
+            downloadUrl: uploadedDoc.downloadUrl || '',
+          };
+          setDocuments(prev => [newDoc, ...prev]);
+        }
+
+        toast({
+          title: "Success",
+          description: `"${file.name}" uploaded successfully.`,
+        });
+      } catch (err) {
+        console.error('Error uploading file:', err);
+        toast({
+          title: "Error",
+          description: `Failed to upload "${file.name}". Please try again.`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    setUploading(false);
+  };
+
+  const filteredFiles = documents.filter(file =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleViewDocument = async (downloadUrl: string) => {
+    if (!downloadUrl) {
+      toast({
+        title: "Error",
+        description: "Download URL not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const accessToken = await getValidAccessToken();
+
+      if (!accessToken) {
+        toast({
+          title: "Error",
+          description: "Session expired. Please login again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // The downloadUrl from API is "/api/v1/documents/download/{id}"
+      // but download endpoint is on document service, so use /api-doc/ prefix
+      // (Vite proxy: /api-doc → dev-api-iform-doc.impactodigifin.xyz with rewrite to /api)
+      let fetchUrl = downloadUrl;
+      if (downloadUrl.startsWith('/api/v1/documents/download/')) {
+        fetchUrl = downloadUrl.replace('/api/', '/api-doc/');
+      }
+
+      // Fetch the document with authentication headers
+      const response = await fetch(fetchUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'accept': 'application/octet-stream',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch document');
+      }
+
+      // Create a blob from the response
+      const blob = await response.blob();
+
+      // Create an object URL and open it in a new tab
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+
+      // Clean up the object URL after a delay to allow the new tab to load
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 60000); // Revoke after 1 minute
+
+    } catch (err) {
+      console.error('Error viewing document:', err);
+      toast({
+        title: "Error",
+        description: "Failed to open document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -73,10 +362,31 @@ const BusinessDataManagement = () => {
                 <h1 className="text-2xl font-bold text-foreground">Business Data Management</h1>
                 <p className="text-muted-foreground">Manage your knowledge base and training data</p>
               </div>
-              <Button className="rounded-full bg-background border border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Files
+              <Button
+                className="rounded-full bg-background border border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Files
+                  </>
+                )}
               </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
             </div>
 
             {/* Upload Area */}
@@ -94,9 +404,18 @@ const BusinessDataManagement = () => {
                   <Upload className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">Upload Business Data</h3>
+                  <h3 className="font-semibold text-foreground">
+                    {uploading ? 'Uploading...' : 'Upload Business Data'}
+                  </h3>
                   <p className="text-muted-foreground">
-                    <button className="text-primary hover:underline">Click to upload</button> or drag and drop
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      Click to upload
+                    </button> or drag and drop
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">PDF, DOC, TXT, or other documents (max 10MB each)</p>
                 </div>
@@ -118,33 +437,52 @@ const BusinessDataManagement = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {filteredFiles.map((file) => (
-                  <div 
-                    key={file.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>
-                        <FileText className="w-5 h-5" />
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>{error}</p>
+                </div>
+              ) : filteredFiles.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No documents uploaded yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{file.name}</p>
+                          <p className="text-sm text-muted-foreground">{file.size} • Uploaded {file.uploadDate}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">{file.name}</p>
-                        <p className="text-sm text-muted-foreground">{file.size} • Uploaded {file.uploadDate}</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => handleViewDocument(file.downloadUrl)}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="text-primary hover:text-primary hover:bg-primary/10">
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>

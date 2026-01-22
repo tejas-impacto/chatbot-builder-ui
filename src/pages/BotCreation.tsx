@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { createChatSession } from "@/lib/chatApi";
+import { getValidAccessToken } from "@/lib/auth";
 
 import KnowledgeBaseStep from "@/components/bot-creation/steps/KnowledgeBaseStep";
 import ConversationStyleStep from "@/components/bot-creation/steps/ConversationStyleStep";
@@ -56,10 +59,26 @@ const steps = [
   { id: 5, title: "Upload Documents", description: "Add files to enhance agent knowledge" },
 ];
 
+// Helper to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 const BotCreation = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<BotCreationData>(initialData);
+  const [isCreating, setIsCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
 
   const updateFormData = (data: Partial<BotCreationData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
@@ -79,9 +98,117 @@ const BotCreation = () => {
     }
   };
 
-  const handleSubmit = () => {
+  // Upload a single document
+  const uploadDocument = async (file: File, tenantId: string, accessToken: string): Promise<boolean> => {
+    try {
+      const base64File = await fileToBase64(file);
+
+      const response = await fetch(
+        `/api-doc/v1/documents/upload?tenantId=${tenantId}&documentType=BUSINESS&documentName=${encodeURIComponent(file.name)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'accept': '*/*',
+          },
+          body: JSON.stringify({ file: base64File }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`Failed to upload ${file.name}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Error uploading ${file.name}:`, error);
+      return false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsCreating(true);
     console.log("Bot Creation Data:", formData);
-    navigate("/bot-creation-progress", { state: { agentName: formData.agentName || "AI Agent" } });
+
+    try {
+      const tenantId = localStorage.getItem('tenantId') || '';
+      const accessToken = await getValidAccessToken();
+
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      // Upload documents first if any
+      if (formData.files.length > 0) {
+        setUploadProgress(`Uploading documents (0/${formData.files.length})...`);
+
+        let successCount = 0;
+        for (let i = 0; i < formData.files.length; i++) {
+          setUploadProgress(`Uploading documents (${i + 1}/${formData.files.length})...`);
+          const success = await uploadDocument(formData.files[i], tenantId, accessToken);
+          if (success) successCount++;
+        }
+
+        if (successCount > 0) {
+          toast({
+            title: "Documents Uploaded",
+            description: `Successfully uploaded ${successCount} of ${formData.files.length} documents.`,
+          });
+        }
+
+        if (successCount < formData.files.length) {
+          toast({
+            title: "Warning",
+            description: `${formData.files.length - successCount} documents failed to upload.`,
+            variant: "destructive",
+          });
+        }
+      }
+
+      setUploadProgress("Creating bot...");
+
+      // For now, use a placeholder chatbotId - this will be replaced when backend provides real chatbot creation
+      const chatbotId = "demo-chatbot"; // TODO: Get from actual bot creation API response
+
+      // Create chat session
+      const sessionResponse = await createChatSession(chatbotId);
+      const sessionData = sessionResponse.responseStructure?.data;
+
+      if (sessionData?.sessionToken) {
+        // Navigate to chat interface with session data
+        navigate("/manage-chatbot", {
+          state: {
+            sessionToken: sessionData.sessionToken,
+            chatbotId: sessionData.chatbotId || chatbotId,
+            chatbotName: sessionData.chatbotName || formData.agentName || "AI Agent",
+            tenantId,
+            showLeadForm: true,
+          },
+        });
+      } else {
+        throw new Error('No session token received');
+      }
+    } catch (error) {
+      console.error("Failed to create bot:", error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize chat session. Navigating to demo mode.",
+        variant: "destructive",
+      });
+      // Fallback to demo mode
+      navigate("/manage-chatbot", {
+        state: {
+          chatbotName: formData.agentName || "AI Agent",
+          showLeadForm: true,
+          demoMode: true,
+        },
+      });
+    } finally {
+      setIsCreating(false);
+      setUploadProgress("");
+    }
   };
 
   const renderStep = () => {
@@ -197,8 +324,16 @@ const BotCreation = () => {
             <Button
               onClick={handleNext}
               className="rounded-full px-8 bg-primary hover:bg-primary/90"
+              disabled={isCreating}
             >
-              {currentStep === steps.length ? "Create Bot" : "Continue"}
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {uploadProgress || "Creating..."}
+                </>
+              ) : (
+                currentStep === steps.length ? "Create Bot" : "Continue"
+              )}
             </Button>
           </div>
         </div>

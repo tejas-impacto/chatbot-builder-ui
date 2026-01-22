@@ -23,6 +23,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showOnboardingPopup, setShowOnboardingPopup] = useState(false);
+  const [requiresOnboarding, setRequiresOnboarding] = useState(false);
 
   useEffect(() => {
     // Check if onboarding was skipped and not completed
@@ -30,9 +31,17 @@ const Dashboard = () => {
     const onboardingSkipped = localStorage.getItem('onboardingSkipped');
 
     if (onboardingSkipped === 'true' && onboardingCompleted !== 'true') {
+      setRequiresOnboarding(true);
       setShowOnboardingPopup(true);
     }
   }, []);
+
+  // Handler to show popup when user tries to perform a blocked action
+  const handleBlockedAction = () => {
+    if (requiresOnboarding) {
+      setShowOnboardingPopup(true);
+    }
+  };
 
   const metrics = [
     { title: "Active Chatbots", value: "12", icon: Bot, trend: "+3 this week", color: "bg-primary/10 text-primary" },
@@ -85,7 +94,10 @@ const Dashboard = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
-        <DashboardSidebar />
+        <DashboardSidebar
+          requiresOnboarding={requiresOnboarding}
+          onBlockedAction={handleBlockedAction}
+        />
 
         <main className="flex-1 overflow-auto">
           <DashboardHeader />
@@ -155,9 +167,23 @@ const Dashboard = () => {
               <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {quickActions.map((action) => (
-                  <Card 
-                    key={action.title} 
-                    className="border-border/50 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+                  <Card
+                    key={action.title}
+                    className={`border-border/50 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group ${
+                      requiresOnboarding ? 'opacity-75' : ''
+                    }`}
+                    onClick={() => {
+                      if (requiresOnboarding) {
+                        handleBlockedAction();
+                      } else {
+                        // Handle navigation based on action
+                        if (action.title === "Create Chat Bot") {
+                          navigate("/bot-creation");
+                        } else if (action.title === "Upload Data") {
+                          navigate("/business-data");
+                        }
+                      }
+                    }}
                   >
                     <CardContent className="p-5 flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
@@ -205,7 +231,18 @@ const Dashboard = () => {
                     <Bot className="w-5 h-5 text-primary" />
                     AI Agents
                   </CardTitle>
-                  <Button variant="outline" size="sm" className="rounded-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`rounded-full ${requiresOnboarding ? 'opacity-75' : ''}`}
+                    onClick={() => {
+                      if (requiresOnboarding) {
+                        handleBlockedAction();
+                      } else {
+                        navigate("/bot-creation");
+                      }
+                    }}
+                  >
                     <Plus className="w-4 h-4 mr-1" />
                     New Agent
                   </Button>

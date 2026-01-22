@@ -15,6 +15,7 @@ import BotCreationProgress from "./pages/BotCreationProgress";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import BusinessDataManagement from "./pages/BusinessDataManagement";
+import BusinessDataOverview from "./pages/BusinessDataOverview";
 import ManageChatbot from "./pages/ManageChatbot";
 import ManageVoicebot from "./pages/ManageVoicebot";
 import CRM from "./pages/CRM";
@@ -47,7 +48,7 @@ const App = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/business-data" element={<BusinessDataManagement />} />
-          <Route path="/business-data/*" element={<BusinessDataManagement />} />
+          <Route path="/business-data/overview" element={<BusinessDataOverview />} />
           <Route path="/manage-chatbot" element={<ManageChatbot />} />
           <Route path="/manage-chatbot/*" element={<ManageChatbot />} />
           <Route path="/manage-voicebot" element={<ManageVoicebot />} />

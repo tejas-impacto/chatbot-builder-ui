@@ -40,6 +40,11 @@ interface MenuItem {
   subItems?: { title: string; url: string }[];
 }
 
+interface DashboardSidebarProps {
+  requiresOnboarding?: boolean;
+  onBlockedAction?: () => void;
+}
+
 const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { 
@@ -47,8 +52,8 @@ const menuItems: MenuItem[] = [
     url: "/business-data", 
     icon: Database,
     subItems: [
-      { title: "Business Data Overview", url: "/business-data" },
-      { title: "Clarification Layer", url: "/business-data/clarification" },
+      { title: "Business Data Overview", url: "/business-data/overview" },
+      { title: "Document Management", url: "/business-data" },
     ]
   },
   { 
@@ -76,7 +81,7 @@ const menuItems: MenuItem[] = [
   { title: "CRM", url: "/crm", icon: Users },
 ];
 
-const DashboardSidebar = () => {
+const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: DashboardSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { state } = useSidebar();
@@ -122,10 +127,18 @@ const DashboardSidebar = () => {
 
         {/* Create Chat Bot Button */}
         {!collapsed && (
-          <Button 
-            variant="outline" 
-            className="mt-4 w-full rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-            onClick={() => navigate("/bot-creation")}
+          <Button
+            variant="outline"
+            className={`mt-4 w-full rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground ${
+              requiresOnboarding ? 'opacity-75' : ''
+            }`}
+            onClick={() => {
+              if (requiresOnboarding && onBlockedAction) {
+                onBlockedAction();
+              } else {
+                navigate("/bot-creation");
+              }
+            }}
           >
             + Create Chat Bot
           </Button>
