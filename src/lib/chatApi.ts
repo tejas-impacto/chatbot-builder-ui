@@ -59,32 +59,41 @@ export const getSessionInfo = async (sessionToken: string) => {
 };
 
 /**
- * Submit lead form to Chat Server (public - no auth required)
+ * Submit lead form to Main API (authenticated)
  * @param tenantId - Tenant identifier
- * @param chatbotId - Chatbot identifier
+ * @param botId - Bot identifier
  * @param sessionId - Session ID from createChatSession
- * @param userInfo - User information (name, email, phone)
+ * @param userInfo - User information (firstName, lastName, email, phone)
  */
 export const submitLeadForm = async (
   tenantId: string,
-  chatbotId: string,
+  botId: string,
   sessionId: string,
   userInfo: UserInfo
 ) => {
-  const response = await fetch(
-    `${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/lead-form`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'accept': 'application/json',
-      },
-      body: JSON.stringify({
-        session_id: sessionId,
-        user_info: userInfo,
-      }),
-    }
-  );
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch('/api/v1/leads/interactions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'accept': '*/*',
+    },
+    body: JSON.stringify({
+      tenantId,
+      botId,
+      sessionId,
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName || '',
+      email: userInfo.email,
+      phone: userInfo.phone || '',
+    }),
+  });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));

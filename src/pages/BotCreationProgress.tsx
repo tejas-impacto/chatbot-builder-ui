@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Grid, HelpCircle, Home, FileText, Terminal, Link2, MessageCircle, Check, Clock } from "lucide-react";
+import { MessageSquare, Grid, HelpCircle, Home, FileText, Check } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface StepStatus {
@@ -9,11 +9,6 @@ interface StepStatus {
   title: string;
   icon: React.ElementType;
   status: "pending" | "done";
-}
-
-interface ActivityLog {
-  time: string;
-  message: string;
 }
 
 interface LocationState {
@@ -35,7 +30,6 @@ const BotCreationProgress = () => {
   const chatbotId = state.chatbotId || "demo-chatbot";
   const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
   const sessionToken = state.sessionToken;
-  const documentsUploaded = state.documentsUploaded || 0;
   const isDemoMode = state.demoMode || !sessionToken;
 
   const [isComplete, setIsComplete] = useState(false);
@@ -47,24 +41,6 @@ const BotCreationProgress = () => {
     { id: 4, title: "Persona & Voice", icon: FileText, status: "pending" },
     { id: 5, title: "Documents Upload", icon: FileText, status: "pending" },
   ]);
-
-  const [activityLogs] = useState<ActivityLog[]>([
-    { time: new Date().toLocaleTimeString(), message: "Answers submitted successfully" },
-    { time: new Date().toLocaleTimeString(), message: "Incorporating answers into knowledge base" },
-    { time: new Date().toLocaleTimeString(), message: "Building knowledge graph (Neo4j)" },
-    { time: new Date().toLocaleTimeString(), message: "Storing document chunks (Milvus)" },
-    { time: new Date().toLocaleTimeString(), message: "Finalizing chatbot setup" },
-    { time: new Date().toLocaleTimeString(), message: "Chatbot creation complete!" },
-  ]);
-
-  const botSummary = {
-    chatbotId: chatbotId,
-    tenantId: tenantId,
-    documentsProcessed: `${documentsUploaded} document${documentsUploaded !== 1 ? 's' : ''}`,
-    entitiesCreated: 12,
-    relationshipsCreated: 11,
-    chunksStored: 17,
-  };
 
   useEffect(() => {
     const progressInterval = setInterval(() => {
@@ -111,155 +87,31 @@ const BotCreationProgress = () => {
     });
   };
 
-  const handleViewEndpoints = () => {
-    navigate("/manage-chatbot/endpoints", {
-      state: {
-        chatbotId,
-        chatbotName: agentName,
-        tenantId,
-      },
-    });
-  };
-
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-cyan-50/30 via-background to-amber-50/20">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold text-primary">CHATBOT AI</span>
-          </Link>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          {/* Success Icon */}
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/10 flex items-center justify-center">
+            <Check className="w-12 h-12 text-green-500" />
+          </div>
+
+          {/* Success Message */}
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Chatbot Created Successfully!
+          </h1>
+          <p className="text-muted-foreground mb-8">
+            Your AI agent "{agentName}" is ready to go.
+          </p>
+
+          {/* Single Action Button */}
           <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="border-border text-foreground hover:bg-muted"
+            onClick={handleStartChatting}
+            className="rounded-full px-8 bg-primary hover:bg-primary/90"
           >
-            Go to Dashboard
+            Go Explore!
           </Button>
-        </header>
-
-        {/* Success Content */}
-        <main className="max-w-4xl mx-auto px-6 py-8">
-          {/* Success Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
-                <Check className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-emerald-600">Chatbot Created Successfully!</h1>
-            </div>
-            <p className="text-muted-foreground ml-11">Your AI agent "{agentName}" is ready to go.</p>
-          </div>
-
-          {/* Bot Summary Card */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6 mb-8">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Chatbot ID</span>
-                <span className="text-primary font-mono">{botSummary.chatbotId}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Tenant ID</span>
-                <span className="text-primary font-mono">{botSummary.tenantId}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Documents Processed</span>
-                <span className="text-primary">{botSummary.documentsProcessed}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Entities Created (Neo4j)</span>
-                <span className="text-primary">{botSummary.entitiesCreated}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Relationships Created</span>
-                <span className="text-primary">{botSummary.relationshipsCreated}</span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-muted-foreground">Chunks Stored (Milvus)</span>
-                <span className="text-primary">{botSummary.chunksStored}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Cards */}
-          <div className="mb-8">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-              What would you like to do next?
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* API Integration */}
-              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
-                <div className="flex items-center gap-2 mb-3">
-                  <Terminal className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-foreground">API Integration</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4 flex-1">
-                  Get curl commands to integrate chat functionality into your application.
-                </p>
-                <Button
-                  onClick={handleViewEndpoints}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                >
-                  View Curl Commands
-                </Button>
-              </div>
-
-              {/* Shareable Chat Link */}
-              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
-                <div className="flex items-center gap-2 mb-3">
-                  <Link2 className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-foreground">Shareable Chat Link</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4 flex-1">
-                  Generate a link with a pre-created session to share with others.
-                </p>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-                  Generate Chat Link
-                </Button>
-              </div>
-
-              {/* Start Chatting */}
-              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageCircle className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-foreground">Start Chatting</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4 flex-1">
-                  Open the chat window here. You'll need to fill in your details first.
-                </p>
-                <Button 
-                  onClick={handleStartChatting}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                >
-                  Start Chatting
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Activity Log */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-              Activity Log
-            </h2>
-            <div className="space-y-3">
-              {activityLogs.map((log, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs font-mono">{log.time}</span>
-                  </div>
-                  <span className={`text-sm ${index === activityLogs.length - 1 ? 'text-emerald-600' : 'text-foreground'}`}>
-                    {log.message}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </main>
+        </div>
       </div>
     );
   }
