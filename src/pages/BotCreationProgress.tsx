@@ -16,11 +16,28 @@ interface ActivityLog {
   message: string;
 }
 
+interface LocationState {
+  sessionToken?: string;
+  chatbotId?: string;
+  chatbotName?: string;
+  tenantId?: string;
+  documentsUploaded?: number;
+  agentName?: string;
+  demoMode?: boolean;
+}
+
 const BotCreationProgress = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const agentName = location.state?.agentName || "AI Agent";
-  
+  const state = (location.state as LocationState) || {};
+
+  const agentName = state.agentName || state.chatbotName || "AI Agent";
+  const chatbotId = state.chatbotId || "demo-chatbot";
+  const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
+  const sessionToken = state.sessionToken;
+  const documentsUploaded = state.documentsUploaded || 0;
+  const isDemoMode = state.demoMode || !sessionToken;
+
   const [isComplete, setIsComplete] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
   const [steps, setSteps] = useState<StepStatus[]>([
@@ -32,18 +49,18 @@ const BotCreationProgress = () => {
   ]);
 
   const [activityLogs] = useState<ActivityLog[]>([
-    { time: "10:23:45", message: "Answers submitted successfully" },
-    { time: "10:23:48", message: "Incorporating answers into knowledge base" },
-    { time: "10:24:12", message: "Building knowledge graph (Neo4j)" },
-    { time: "10:24:35", message: "Storing document chunks (Milvus)" },
-    { time: "10:24:58", message: "Finalizing chatbot setup" },
-    { time: "10:25:02", message: "Chatbot creation complete!" },
+    { time: new Date().toLocaleTimeString(), message: "Answers submitted successfully" },
+    { time: new Date().toLocaleTimeString(), message: "Incorporating answers into knowledge base" },
+    { time: new Date().toLocaleTimeString(), message: "Building knowledge graph (Neo4j)" },
+    { time: new Date().toLocaleTimeString(), message: "Storing document chunks (Milvus)" },
+    { time: new Date().toLocaleTimeString(), message: "Finalizing chatbot setup" },
+    { time: new Date().toLocaleTimeString(), message: "Chatbot creation complete!" },
   ]);
 
   const botSummary = {
-    chatbotId: "bot_93ad297e",
-    tenantId: "tenant_001",
-    documentsProcessed: "2 (1 business, 1 personalized)",
+    chatbotId: chatbotId,
+    tenantId: tenantId,
+    documentsProcessed: `${documentsUploaded} document${documentsUploaded !== 1 ? 's' : ''}`,
     entitiesCreated: 12,
     relationshipsCreated: 11,
     chunksStored: 17,
@@ -82,7 +99,26 @@ const BotCreationProgress = () => {
   }, []);
 
   const handleStartChatting = () => {
-    navigate("/manage-chatbot");
+    navigate("/manage-chatbot", {
+      state: {
+        sessionToken,
+        chatbotId,
+        chatbotName: agentName,
+        tenantId,
+        showLeadForm: true,
+        demoMode: isDemoMode,
+      },
+    });
+  };
+
+  const handleViewEndpoints = () => {
+    navigate("/manage-chatbot/endpoints", {
+      state: {
+        chatbotId,
+        chatbotName: agentName,
+        tenantId,
+      },
+    });
   };
 
   if (isComplete) {
@@ -163,7 +199,10 @@ const BotCreationProgress = () => {
                 <p className="text-sm text-muted-foreground mb-4 flex-1">
                   Get curl commands to integrate chat functionality into your application.
                 </p>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button
+                  onClick={handleViewEndpoints}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
                   View Curl Commands
                 </Button>
               </div>

@@ -132,8 +132,9 @@ const BotCreation = () => {
     setIsCreating(true);
     console.log("Bot Creation Data:", formData);
 
+    const tenantId = localStorage.getItem('tenantId') || '';
+
     try {
-      const tenantId = localStorage.getItem('tenantId') || '';
       const accessToken = await getValidAccessToken();
 
       if (!accessToken) {
@@ -177,14 +178,15 @@ const BotCreation = () => {
       const sessionData = sessionResponse.responseStructure?.data;
 
       if (sessionData?.sessionToken) {
-        // Navigate to chat interface with session data
-        navigate("/manage-chatbot", {
+        // Navigate to progress/success page with session data
+        navigate("/bot-creation-progress", {
           state: {
             sessionToken: sessionData.sessionToken,
             chatbotId: sessionData.chatbotId || chatbotId,
             chatbotName: sessionData.chatbotName || formData.agentName || "AI Agent",
             tenantId,
-            showLeadForm: true,
+            documentsUploaded: formData.files.length,
+            agentName: formData.agentName || "AI Agent",
           },
         });
       } else {
@@ -197,11 +199,14 @@ const BotCreation = () => {
         description: "Failed to initialize chat session. Navigating to demo mode.",
         variant: "destructive",
       });
-      // Fallback to demo mode
-      navigate("/manage-chatbot", {
+      // Fallback to progress page in demo mode
+      navigate("/bot-creation-progress", {
         state: {
+          chatbotId: "demo-chatbot",
           chatbotName: formData.agentName || "AI Agent",
-          showLeadForm: true,
+          tenantId,
+          documentsUploaded: formData.files.length,
+          agentName: formData.agentName || "AI Agent",
           demoMode: true,
         },
       });
