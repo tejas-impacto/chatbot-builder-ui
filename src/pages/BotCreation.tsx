@@ -99,7 +99,7 @@ const BotCreation = () => {
   };
 
   // Upload a single document
-  const uploadDocument = async (file: File, tenantId: string, accessToken: string): Promise<boolean> => {
+  const uploadDocument = async (file: File, tenantId: string, accessToken: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const base64File = await fileToBase64(file);
 
@@ -117,14 +117,16 @@ const BotCreation = () => {
       );
 
       if (!response.ok) {
-        console.error(`Failed to upload ${file.name}`);
-        return false;
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.message || `Upload failed with status ${response.status}`;
+        console.error(`Failed to upload ${file.name}:`, errorMsg);
+        return { success: false, error: errorMsg };
       }
 
-      return true;
+      return { success: true };
     } catch (error) {
       console.error(`Error uploading ${file.name}:`, error);
-      return false;
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   };
 
@@ -146,10 +148,16 @@ const BotCreation = () => {
         setUploadProgress(`Uploading documents (0/${formData.files.length})...`);
 
         let successCount = 0;
+        const failedFiles: string[] = [];
+
         for (let i = 0; i < formData.files.length; i++) {
           setUploadProgress(`Uploading documents (${i + 1}/${formData.files.length})...`);
-          const success = await uploadDocument(formData.files[i], tenantId, accessToken);
-          if (success) successCount++;
+          const result = await uploadDocument(formData.files[i], tenantId, accessToken);
+          if (result.success) {
+            successCount++;
+          } else {
+            failedFiles.push(`${formData.files[i].name}: ${result.error}`);
+          }
         }
 
         if (successCount > 0) {
@@ -159,12 +167,13 @@ const BotCreation = () => {
           });
         }
 
-        if (successCount < formData.files.length) {
+        if (failedFiles.length > 0) {
           toast({
-            title: "Warning",
-            description: `${formData.files.length - successCount} documents failed to upload.`,
+            title: "Upload Failed",
+            description: failedFiles[0], // Show first error
             variant: "destructive",
           });
+          console.error('Failed uploads:', failedFiles);
         }
       }
 

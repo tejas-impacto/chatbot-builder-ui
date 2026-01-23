@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
@@ -13,26 +13,33 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
-  // Handle Google OAuth callback (when backend redirects with tokens in URL)
+  // Handle Google OAuth callback (when backend redirects with tokens in URL hash fragment)
   useEffect(() => {
-    const accessToken = searchParams.get('accessToken');
-    const refreshToken = searchParams.get('refreshToken');
-    const accessExpiresIn = searchParams.get('accessExpiresIn');
-    const refreshExpiresIn = searchParams.get('refreshExpiresIn');
-    const onboardingCompleted = searchParams.get('onboardingCompleted');
-    const documentUploaded = searchParams.get('documentUploaded');
-    const tenantId = searchParams.get('tenantId');
+    // Parse hash fragment (backend returns tokens after # not ?)
+    const hash = window.location.hash.substring(1); // Remove the '#'
+    const hashParams = new URLSearchParams(hash);
+
+    // Debug: log all hash params
+    console.log('OAuth callback - Hash params:', Object.fromEntries(hashParams.entries()));
+
+    // Backend uses snake_case, so map to our expected names
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const expiresIn = hashParams.get('expires_in');
+    const onboardingCompleted = hashParams.get('onboarding_completed');
+    const documentUploaded = hashParams.get('document_uploaded');
+    const tenantId = hashParams.get('tenant_id');
+    const userId = hashParams.get('user_id');
 
     if (accessToken && refreshToken) {
       // Store tokens in localStorage
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
-      if (accessExpiresIn) localStorage.setItem('accessExpiresIn', accessExpiresIn);
-      if (refreshExpiresIn) localStorage.setItem('refreshExpiresIn', refreshExpiresIn);
+      if (expiresIn) localStorage.setItem('accessExpiresIn', expiresIn);
       localStorage.setItem('isOnboarded', onboardingCompleted || 'false');
       localStorage.setItem('documentUploaded', documentUploaded || 'false');
+      if (userId) localStorage.setItem('userId', userId);
       // Store tenantId if available (will be present for existing users with completed onboarding)
       if (tenantId) {
         localStorage.setItem('tenantId', tenantId);
@@ -44,26 +51,34 @@ const Login = () => {
       storeTokenTimestamp();
       startTokenRefreshTimer();
 
+      // Clear hash from URL (security: don't leave tokens in browser history)
+      window.history.replaceState(null, '', window.location.pathname);
+
       toast({
         title: "Success",
         description: "Login successful",
       });
 
-      // Redirect based on onboarding status
-      // If onboarding is not completed, clear any previous skip flag (could be from different user)
-      if (onboardingCompleted !== 'true') {
-        localStorage.removeItem('onboardingSkipped');
-      }
+      // Redirect based on onboarding status from URL params
+      const isOnboardingComplete = onboardingCompleted === 'true';
+      const isDocumentUploaded = documentUploaded === 'true';
 
-      const previouslySkipped = localStorage.getItem('onboardingSkipped') === 'true';
+      // Clear any previous skip flag for fresh login
+      localStorage.removeItem('onboardingSkipped');
 
-      if (onboardingCompleted === 'true' || previouslySkipped) {
+      if (!isOnboardingComplete && !isDocumentUploaded) {
+        // Both false → redirect to onboarding
+        navigate('/onboarding');
+      } else if (!isOnboardingComplete || !isDocumentUploaded) {
+        // Any one is false → redirect to dashboard with onboardingSkipped flag (will show popup)
+        localStorage.setItem('onboardingSkipped', 'true');
         navigate('/dashboard');
       } else {
-        navigate('/onboarding');
+        // Both true → redirect to dashboard normally
+        navigate('/dashboard');
       }
     }
-  }, [searchParams, navigate, toast]);
+  }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
