@@ -215,16 +215,6 @@ const BusinessDataManagement = () => {
     setUploading(true);
 
     for (const file of files) {
-      // Check file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "Error",
-          description: `File "${file.name}" exceeds 10MB limit.`,
-          variant: "destructive",
-        });
-        continue;
-      }
-
       try {
         const base64File = await fileToBase64(file);
 
@@ -417,7 +407,7 @@ const BusinessDataManagement = () => {
                       Click to upload
                     </button> or drag and drop
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">PDF, DOC, TXT, or other documents (max 10MB each)</p>
+                  <p className="text-sm text-muted-foreground mt-1">PDF, DOC, TXT, or other documents</p>
                 </div>
               </div>
             </div>

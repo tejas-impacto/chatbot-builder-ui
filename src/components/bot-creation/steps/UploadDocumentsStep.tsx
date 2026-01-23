@@ -108,7 +108,7 @@ const UploadDocumentsStep = ({ data, onChange }: UploadDocumentsStepProps) => {
             <span className="text-muted-foreground"> or drag and drop</span>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            PDF, DOC, TXT, or other documents (max 10MB each)
+            PDF, DOC, TXT, or other documents
           </p>
         </label>
       </div>

@@ -59,20 +59,14 @@ const ManageChatbot = () => {
   const handleLeadFormSubmit = async (userInfo: UserInfo) => {
     setIsLeadFormSubmitting(true);
 
-    // Debug log to identify missing data
-    console.log('Lead form submit - sessionId:', sessionId, 'tenantId:', tenantId, 'chatbotId:', chatbotId);
-
     try {
       // Submit lead form to API if we have the required data
       if (sessionId && tenantId && chatbotId) {
-        console.log('Calling submitLeadForm API...');
         await submitLeadForm(tenantId, chatbotId, sessionId, userInfo);
         toast({
           title: "Success",
           description: "Thank you! You can now start chatting.",
         });
-      } else {
-        console.log('Missing required data - skipping API call');
       }
       setShowLeadForm(false);
     } catch (error) {
