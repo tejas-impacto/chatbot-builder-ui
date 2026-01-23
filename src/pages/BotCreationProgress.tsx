@@ -41,19 +41,28 @@ interface BotSummary {
 }
 
 interface WebSocketMessage {
-  type: "progress" | "step_complete" | "error" | "complete" | "log" | "status_update";
+  type?: string;
+  event?: string;
+  status?: string;
   step?: number;
   progress?: number;
+  percentage?: number;
   message?: string;
+  msg?: string;
   stage?: string;
   stage_display?: string;
   stage_icon?: string;
+  current_step?: number;
+  total_steps?: number;
   details?: unknown;
   data?: {
     documentsProcessed?: string;
     entitiesCreated?: number;
     relationshipsCreated?: number;
     chunksStored?: number;
+    progress?: number;
+    step?: number;
+    message?: string;
   };
 }
 
@@ -133,10 +142,14 @@ const BotCreationProgress = () => {
 
     ws.onmessage = (event) => {
       try {
-        const message: WebSocketMessage = JSON.parse(event.data);
+        console.log("Raw WebSocket data:", event.data);
+        const message = JSON.parse(event.data);
+        console.log("Parsed WebSocket message:", message);
         handleWebSocketMessage(message);
       } catch (error) {
         console.error("Failed to parse WebSocket message:", error);
+        // Try to handle as plain text message
+        addLog(String(event.data), "info");
       }
     };
 
@@ -169,80 +182,79 @@ const BotCreationProgress = () => {
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
     console.log("WebSocket message received:", message);
 
-    switch (message.type) {
-      case "status_update":
-        // Handle status_update messages from server
-        if (message.progress !== undefined) {
-          setCurrentProgress(message.progress);
-        }
-        if (message.message) {
-          addLog(message.message, "info");
-        }
-        // Map stage to step completion
-        if (message.stage === "completed" || message.stage === "complete") {
-          setCurrentProgress(100);
-          steps.forEach((_, index) => updateStepStatus(index, "done"));
-          addLog("Chatbot creation complete!", "success");
-          setIsComplete(true);
-        }
-        break;
+    // Extract values from various possible field names
+    const messageType = message.type || message.event || message.status || "";
+    const progressValue = message.progress ?? message.percentage ?? message.data?.progress;
+    const messageText = message.message || message.msg || message.data?.message;
+    const stepValue = message.step ?? message.current_step ?? message.data?.step;
 
-      case "progress":
-        if (message.progress !== undefined) {
-          setCurrentProgress(message.progress);
-        }
-        if (message.message) {
-          addLog(message.message, "info");
-        }
-        break;
+    // Update progress if available
+    if (progressValue !== undefined) {
+      setCurrentProgress(progressValue);
+      // Auto-update steps based on progress percentage
+      const completedSteps = Math.floor((progressValue / 100) * steps.length);
+      for (let i = 0; i < completedSteps; i++) {
+        updateStepStatus(i, "done");
+      }
+    }
 
-      case "step_complete":
-        if (message.step !== undefined) {
-          updateStepStatus(message.step - 1, "done");
-          addLog(`Step ${message.step} completed: ${steps[message.step - 1]?.title}`, "success");
-        }
-        break;
+    // Log any message
+    if (messageText) {
+      addLog(messageText, "info");
+    }
 
-      case "log":
-        if (message.message) {
-          addLog(message.message, "info");
-        }
-        break;
+    // Handle specific message types
+    const typeNormalized = messageType.toLowerCase();
 
-      case "complete":
+    if (typeNormalized.includes("error") || typeNormalized === "failed") {
+      setHasError(true);
+      setErrorMessage(messageText || "An error occurred during chatbot creation.");
+      addLog(messageText || "Error occurred", "error");
+      toast({
+        title: "Error",
+        description: messageText || "An error occurred during chatbot creation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (typeNormalized.includes("complete") || typeNormalized === "done" || typeNormalized === "finished" || typeNormalized === "success") {
+      setCurrentProgress(100);
+      steps.forEach((_, index) => updateStepStatus(index, "done"));
+      if (message.data) {
+        setBotSummary(prev => ({
+          ...prev,
+          documentsProcessed: message.data?.documentsProcessed || prev.documentsProcessed,
+          entitiesCreated: message.data?.entitiesCreated || prev.entitiesCreated,
+          relationshipsCreated: message.data?.relationshipsCreated || prev.relationshipsCreated,
+          chunksStored: message.data?.chunksStored || prev.chunksStored,
+        }));
+      }
+      addLog("Chatbot creation complete!", "success");
+      setIsComplete(true);
+      return;
+    }
+
+    if (typeNormalized.includes("step") && stepValue !== undefined) {
+      updateStepStatus(stepValue - 1, "done");
+      addLog(`Step ${stepValue} completed: ${steps[stepValue - 1]?.title}`, "success");
+      return;
+    }
+
+    // Handle stage-based progress
+    if (message.stage) {
+      const stageNormalized = message.stage.toLowerCase();
+      if (stageNormalized === "completed" || stageNormalized === "complete" || stageNormalized === "done") {
         setCurrentProgress(100);
         steps.forEach((_, index) => updateStepStatus(index, "done"));
-        if (message.data) {
-          setBotSummary(prev => ({
-            ...prev,
-            documentsProcessed: message.data?.documentsProcessed || prev.documentsProcessed,
-            entitiesCreated: message.data?.entitiesCreated || prev.entitiesCreated,
-            relationshipsCreated: message.data?.relationshipsCreated || prev.relationshipsCreated,
-            chunksStored: message.data?.chunksStored || prev.chunksStored,
-          }));
-        }
         addLog("Chatbot creation complete!", "success");
         setIsComplete(true);
-        break;
+      }
+    }
 
-      case "error":
-        setHasError(true);
-        setErrorMessage(message.message || "An error occurred during chatbot creation.");
-        addLog(message.message || "Error occurred", "error");
-        toast({
-          title: "Error",
-          description: message.message || "An error occurred during chatbot creation.",
-          variant: "destructive",
-        });
-        break;
-
-      default:
-        // Log unknown message types for debugging
-        console.log("Unknown message type:", message.type);
-        if (message.message) {
-          addLog(message.message, "info");
-        }
-        break;
+    // If no specific type matched but we have data, just log it
+    if (!messageType && !progressValue && !messageText) {
+      console.log("Unhandled message format:", message);
     }
   }, [addLog, updateStepStatus, steps, toast]);
 
