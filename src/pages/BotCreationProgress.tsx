@@ -115,8 +115,8 @@ const BotCreationProgress = () => {
     if (!wsUrl) {
       // Fallback to simulation if no WebSocket URL provided
       addLog("No WebSocket URL provided, running in simulation mode", "info");
-      runSimulation();
-      return;
+      const cleanup = runSimulation();
+      return cleanup;
     }
 
     addLog("Connecting to server...", "info");
@@ -267,8 +267,8 @@ const BotCreationProgress = () => {
       { delay: 5000, message: "Chatbot creation complete!" },
     ];
 
-    simulationLogs.forEach(({ delay, message }) => {
-      setTimeout(() => addLog(message, delay === 5000 ? "success" : "info"), delay);
+    const logTimers = simulationLogs.map(({ delay, message }) => {
+      return setTimeout(() => addLog(message, delay === 5000 ? "success" : "info"), delay);
     });
 
     const stepTimers = steps.map((_, index) => {
@@ -290,6 +290,7 @@ const BotCreationProgress = () => {
 
     return () => {
       clearInterval(progressInterval);
+      logTimers.forEach(clearTimeout);
       stepTimers.forEach(clearTimeout);
       clearTimeout(completeTimer);
     };
