@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MessageSquare, Loader2 } from "lucide-react";
@@ -59,18 +59,26 @@ const steps = [
   { id: 5, title: "Upload Documents", description: "Add files to enhance agent knowledge" },
 ];
 
-// Helper to convert file to base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      resolve(base64);
+// Document upload response interface
+interface UploadResponse {
+  message: string;
+  response: {
+    toastMessage: string;
+    data: {
+      totalFiles: number;
+      successCount: number;
+      failureCount: number;
+      status: string;
+      results: Array<{
+        originalFileName: string;
+        success: boolean;
+        documentId?: string;
+        error?: string;
+      }>;
     };
-    reader.onerror = (error) => reject(error);
-  });
-};
+  };
+  status: number;
+}
 
 const BotCreation = () => {
   const navigate = useNavigate();
@@ -98,71 +106,114 @@ const BotCreation = () => {
     }
   };
 
-  // Upload a single document
-  const uploadDocument = async (file: File, tenantId: string, accessToken: string): Promise<boolean> => {
+  // Upload multiple documents using multipart/form-data
+  const uploadDocuments = async (
+    files: File[],
+    tenantId: string,
+    accessToken: string,
+    chatbotId?: string
+  ): Promise<UploadResponse | null> => {
     try {
-      const base64File = await fileToBase64(file);
+      const formData = new FormData();
 
-      const response = await fetch(
-        `/api-doc/v1/documents/upload?tenantId=${tenantId}&documentType=BUSINESS&documentName=${encodeURIComponent(file.name)}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'accept': '*/*',
-          },
-          body: JSON.stringify({ file: base64File }),
-        }
-      );
+      // Append all files
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      // Append required fields
+      formData.append('tenantId', tenantId);
+      formData.append('documentType', 'BUSINESS');
+
+      // Append optional fields
+      if (chatbotId) {
+        formData.append('chatbotId', chatbotId);
+      }
+      formData.append('description', 'Uploaded via bot creation');
+
+      const response = await fetch('/api-doc/v1/documents/upload/multiple', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'accept': '*/*',
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
 
       if (!response.ok) {
-        console.error(`Failed to upload ${file.name}`);
-        return false;
+        console.error('Failed to upload documents:', data);
+        return null;
       }
 
-      return true;
+      return data as UploadResponse;
     } catch (error) {
-      console.error(`Error uploading ${file.name}:`, error);
-      return false;
+      console.error('Error uploading documents:', error);
+      return null;
     }
   };
 
+  const generateChatbotId = useCallback(() => {
+    return 'bot_' + crypto.randomUUID().replace(/-/g, '').substring(0, 12);
+  }, []);
+
   const handleSubmit = async () => {
+    const tenantId = localStorage.getItem('tenantId');
+
+    if (!tenantId) {
+      toast({
+        title: "Error",
+        description: "Tenant ID not found. Please complete onboarding first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
     console.log("Bot Creation Data:", formData);
 
-    const tenantId = localStorage.getItem('tenantId') || '';
+    // Get valid access token for API and WebSocket authentication
+    const accessToken = await getValidAccessToken();
+
+    if (!accessToken) {
+      toast({
+        title: "Session Expired",
+        description: "Please login again to continue.",
+        variant: "destructive",
+      });
+      setIsCreating(false);
+      return;
+    }
 
     try {
-      const accessToken = await getValidAccessToken();
-
-      if (!accessToken) {
-        throw new Error('No access token available');
-      }
-
       // Upload documents first if any
       if (formData.files.length > 0) {
-        setUploadProgress(`Uploading documents (0/${formData.files.length})...`);
+        setUploadProgress(`Uploading ${formData.files.length} document(s)...`);
 
-        let successCount = 0;
-        for (let i = 0; i < formData.files.length; i++) {
-          setUploadProgress(`Uploading documents (${i + 1}/${formData.files.length})...`);
-          const success = await uploadDocument(formData.files[i], tenantId, accessToken);
-          if (success) successCount++;
-        }
+        const uploadResult = await uploadDocuments(formData.files, tenantId, accessToken);
 
-        if (successCount > 0) {
-          toast({
-            title: "Documents Uploaded",
-            description: `Successfully uploaded ${successCount} of ${formData.files.length} documents.`,
-          });
-        }
+        if (uploadResult) {
+          const { successCount, failureCount } = uploadResult.response.data;
 
-        if (successCount < formData.files.length) {
+          if (successCount > 0) {
+            toast({
+              title: "Documents Uploaded",
+              description: `Successfully uploaded ${successCount} of ${formData.files.length} documents.`,
+            });
+          }
+
+          if (failureCount > 0) {
+            toast({
+              title: "Warning",
+              description: `${failureCount} documents failed to upload.`,
+              variant: "destructive",
+            });
+          }
+        } else {
           toast({
             title: "Warning",
-            description: `${formData.files.length - successCount} documents failed to upload.`,
+            description: "Failed to upload documents. Continuing with bot creation...",
             variant: "destructive",
           });
         }
@@ -170,33 +221,103 @@ const BotCreation = () => {
 
       setUploadProgress("Creating bot...");
 
-      // For now, use a placeholder chatbotId - this will be replaced when backend provides real chatbot creation
-      const chatbotId = "demo-chatbot"; // TODO: Get from actual bot creation API response
+      // Call POST /api/v1/bots to create the bot
+      const createBotPayload = {
+        tenantId,
+        conversationStyle: {
+          chatLength: formData.chatResponseLength,
+          chatGuidelines: formData.chatGuidelines,
+          voiceLength: formData.voiceResponseLength,
+          voiceGuidelines: formData.voiceGuidelines,
+        },
+        channelType: "web",
+        purposeCategory: formData.purpose,
+        persona: formData.persona,
+        agentName: formData.agentName || "AI Agent",
+        toneOfVoice: formData.voiceTone,
+      };
 
-      // Create chat session
-      const sessionResponse = await createChatSession(chatbotId);
-      const sessionData = sessionResponse.responseStructure?.data;
+      console.log("Creating bot with payload:", createBotPayload);
 
-      if (sessionData?.sessionToken) {
-        // Navigate to progress/success page with session data
-        navigate("/bot-creation-progress", {
-          state: {
-            sessionToken: sessionData.sessionToken,
-            chatbotId: sessionData.chatbotId || chatbotId,
-            chatbotName: sessionData.chatbotName || formData.agentName || "AI Agent",
-            tenantId,
-            documentsUploaded: formData.files.length,
-            agentName: formData.agentName || "AI Agent",
-          },
-        });
-      } else {
-        throw new Error('No session token received');
+      const response = await fetch('/api/v1/bots', {
+        method: 'POST',
+        headers: {
+          'accept': '*/*',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(createBotPayload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.responseStructure?.toastMessage || data.response?.toastMessage || data.message || 'Failed to create bot');
       }
+
+      console.log("Bot creation API response:", data);
+
+      // Extract chatbotId from response - handle both response and responseStructure patterns
+      const responseData = data.responseStructure?.data || data.response?.data || data;
+      const chatbotId = responseData?.bot_id ||
+                        responseData?.botId ||
+                        responseData?.chatbotId ||
+                        responseData?.id ||
+                        data.bot_id ||
+                        data.botId ||
+                        data.chatbotId ||
+                        data.id ||
+                        generateChatbotId();
+
+      console.log("Bot created with ID:", chatbotId);
+
+      // Build WebSocket URL using the response data
+      const API_WS_HOST = import.meta.env.VITE_WS_API_URL || 'ws://172.16.0.99:8002';
+      const wsUrl = `${API_WS_HOST}/ws/chatbot/create/${chatbotId}?tenant_id=${tenantId}&token=${accessToken}`;
+
+      console.log("Connecting to WebSocket:", wsUrl);
+
+      // Try to create a chat session as well
+      let sessionToken = null;
+      try {
+        const sessionResponse = await createChatSession(chatbotId);
+        const sessionData = sessionResponse.responseStructure?.data;
+        sessionToken = sessionData?.sessionToken;
+      } catch (sessionError) {
+        console.warn("Could not create chat session:", sessionError);
+      }
+
+      // Navigate to progress page with connection details
+      navigate("/bot-creation-progress", {
+        state: {
+          agentName: formData.agentName || "AI Agent",
+          chatbotId,
+          chatbotName: formData.agentName || "AI Agent",
+          tenantId,
+          wsUrl,
+          sessionToken,
+          documentsUploaded: formData.files.length,
+          formData: {
+            companyOverview: formData.companyOverview,
+            productFeatures: formData.productFeatures,
+            commonFaqs: formData.commonFaqs,
+            chatResponseLength: formData.chatResponseLength,
+            chatGuidelines: formData.chatGuidelines,
+            voiceResponseLength: formData.voiceResponseLength,
+            voiceGuidelines: formData.voiceGuidelines,
+            purpose: formData.purpose,
+            persona: formData.persona,
+            voiceTone: formData.voiceTone,
+            agentName: formData.agentName,
+          },
+          files: formData.files,
+        }
+      });
     } catch (error) {
-      console.error("Failed to create bot:", error);
+      console.error("Bot creation failed:", error);
       toast({
-        title: "Error",
-        description: "Failed to initialize chat session. Navigating to demo mode.",
+        title: "Bot Creation Failed",
+        description: error instanceof Error ? error.message : "An error occurred while creating the bot.",
         variant: "destructive",
       });
       // Fallback to progress page in demo mode
@@ -328,8 +449,8 @@ const BotCreation = () => {
             )}
             <Button
               onClick={handleNext}
-              className="rounded-full px-8 bg-primary hover:bg-primary/90"
               disabled={isCreating}
+              className="rounded-full px-8 bg-primary hover:bg-primary/90"
             >
               {isCreating ? (
                 <>

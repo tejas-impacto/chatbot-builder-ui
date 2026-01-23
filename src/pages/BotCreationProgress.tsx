@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Grid, HelpCircle, Home, FileText, Check } from "lucide-react";
+import { MessageSquare, Grid, HelpCircle, Home, FileText, Terminal, Link2, MessageCircle, Check, Clock, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 
 interface StepStatus {
   id: number;
   title: string;
   icon: React.ElementType;
-  status: "pending" | "done";
+  status: "pending" | "done" | "error";
 }
 
 interface LocationState {
@@ -19,20 +20,62 @@ interface LocationState {
   documentsUploaded?: number;
   agentName?: string;
   demoMode?: boolean;
+  wsUrl?: string;
+  formData?: Record<string, unknown>;
+  files?: File[];
+}
+
+interface ActivityLog {
+  time: string;
+  message: string;
+  type?: "info" | "success" | "error";
+}
+
+interface BotSummary {
+  chatbotId: string;
+  tenantId: string;
+  documentsProcessed: string;
+  entitiesCreated: number;
+  relationshipsCreated: number;
+  chunksStored: number;
+}
+
+interface WebSocketMessage {
+  type: "progress" | "step_complete" | "error" | "complete" | "log" | "status_update";
+  step?: number;
+  progress?: number;
+  message?: string;
+  stage?: string;
+  stage_display?: string;
+  stage_icon?: string;
+  details?: unknown;
+  data?: {
+    documentsProcessed?: string;
+    entitiesCreated?: number;
+    relationshipsCreated?: number;
+    chunksStored?: number;
+  };
 }
 
 const BotCreationProgress = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const state = (location.state as LocationState) || {};
 
+  // Extract data from navigation state
   const agentName = state.agentName || state.chatbotName || "AI Agent";
   const chatbotId = state.chatbotId || "demo-chatbot";
   const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
   const sessionToken = state.sessionToken;
   const isDemoMode = state.demoMode || !sessionToken;
+  const wsUrl = state.wsUrl || "";
+  const files = state.files || [];
 
+  const wsRef = useRef<WebSocket | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [currentProgress, setCurrentProgress] = useState(0);
   const [steps, setSteps] = useState<StepStatus[]>([
     { id: 1, title: "Knowledge Base", icon: Grid, status: "pending" },
@@ -42,7 +85,169 @@ const BotCreationProgress = () => {
     { id: 5, title: "Documents Upload", icon: FileText, status: "pending" },
   ]);
 
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+
+  const [botSummary, setBotSummary] = useState<BotSummary>({
+    chatbotId: chatbotId,
+    tenantId: tenantId,
+    documentsProcessed: "0",
+    entitiesCreated: 0,
+    relationshipsCreated: 0,
+    chunksStored: 0,
+  });
+
+  const addLog = useCallback((message: string, type: "info" | "success" | "error" = "info") => {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour12: false });
+    setActivityLogs(prev => [...prev, { time, message, type }]);
+  }, []);
+
+  const updateStepStatus = useCallback((stepIndex: number, status: "pending" | "done" | "error") => {
+    setSteps(prevSteps =>
+      prevSteps.map((step, i) =>
+        i === stepIndex ? { ...step, status } : step
+      )
+    );
+  }, []);
+
+  // WebSocket connection and message handling
   useEffect(() => {
+    if (!wsUrl) {
+      // Fallback to simulation if no WebSocket URL provided
+      addLog("No WebSocket URL provided, running in simulation mode", "info");
+      runSimulation();
+      return;
+    }
+
+    addLog("Connecting to server...", "info");
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      addLog("Connected to server", "success");
+      addLog("Waiting for bot creation progress...", "info");
+      // Bot was already created via POST /api/v1/bots
+      // WebSocket is used to receive progress updates only
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
+        handleWebSocketMessage(message);
+      } catch (error) {
+        console.error("Failed to parse WebSocket message:", error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      addLog("Connection error occurred", "error");
+      setHasError(true);
+      setErrorMessage("Failed to connect to the server. Please try again.");
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to the chatbot creation service.",
+        variant: "destructive",
+      });
+    };
+
+    ws.onclose = (event) => {
+      if (!isComplete && !hasError) {
+        addLog(`Connection closed (code: ${event.code})`, "info");
+      }
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsUrl]);
+
+  const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
+    console.log("WebSocket message received:", message);
+
+    switch (message.type) {
+      case "status_update":
+        // Handle status_update messages from server
+        if (message.progress !== undefined) {
+          setCurrentProgress(message.progress);
+        }
+        if (message.message) {
+          addLog(message.message, "info");
+        }
+        // Map stage to step completion
+        if (message.stage === "completed" || message.stage === "complete") {
+          setCurrentProgress(100);
+          steps.forEach((_, index) => updateStepStatus(index, "done"));
+          addLog("Chatbot creation complete!", "success");
+          setIsComplete(true);
+        }
+        break;
+
+      case "progress":
+        if (message.progress !== undefined) {
+          setCurrentProgress(message.progress);
+        }
+        if (message.message) {
+          addLog(message.message, "info");
+        }
+        break;
+
+      case "step_complete":
+        if (message.step !== undefined) {
+          updateStepStatus(message.step - 1, "done");
+          addLog(`Step ${message.step} completed: ${steps[message.step - 1]?.title}`, "success");
+        }
+        break;
+
+      case "log":
+        if (message.message) {
+          addLog(message.message, "info");
+        }
+        break;
+
+      case "complete":
+        setCurrentProgress(100);
+        steps.forEach((_, index) => updateStepStatus(index, "done"));
+        if (message.data) {
+          setBotSummary(prev => ({
+            ...prev,
+            documentsProcessed: message.data?.documentsProcessed || prev.documentsProcessed,
+            entitiesCreated: message.data?.entitiesCreated || prev.entitiesCreated,
+            relationshipsCreated: message.data?.relationshipsCreated || prev.relationshipsCreated,
+            chunksStored: message.data?.chunksStored || prev.chunksStored,
+          }));
+        }
+        addLog("Chatbot creation complete!", "success");
+        setIsComplete(true);
+        break;
+
+      case "error":
+        setHasError(true);
+        setErrorMessage(message.message || "An error occurred during chatbot creation.");
+        addLog(message.message || "Error occurred", "error");
+        toast({
+          title: "Error",
+          description: message.message || "An error occurred during chatbot creation.",
+          variant: "destructive",
+        });
+        break;
+
+      default:
+        // Log unknown message types for debugging
+        console.log("Unknown message type:", message.type);
+        if (message.message) {
+          addLog(message.message, "info");
+        }
+        break;
+    }
+  }, [addLog, updateStepStatus, steps, toast]);
+
+  // Simulation fallback when no WebSocket
+  const runSimulation = useCallback(() => {
     const progressInterval = setInterval(() => {
       setCurrentProgress((prev) => {
         if (prev >= 100) {
@@ -53,17 +258,33 @@ const BotCreationProgress = () => {
       });
     }, 100);
 
+    const simulationLogs = [
+      { delay: 500, message: "Answers submitted successfully" },
+      { delay: 1500, message: "Incorporating answers into knowledge base" },
+      { delay: 2500, message: "Building knowledge graph (Neo4j)" },
+      { delay: 3500, message: "Storing document chunks (Milvus)" },
+      { delay: 4500, message: "Finalizing chatbot setup" },
+      { delay: 5000, message: "Chatbot creation complete!" },
+    ];
+
+    simulationLogs.forEach(({ delay, message }) => {
+      setTimeout(() => addLog(message, delay === 5000 ? "success" : "info"), delay);
+    });
+
     const stepTimers = steps.map((_, index) => {
       return setTimeout(() => {
-        setSteps((prevSteps) =>
-          prevSteps.map((step, i) =>
-            i <= index ? { ...step, status: "done" as const } : step
-          )
-        );
+        updateStepStatus(index, "done");
       }, (index + 1) * 1000);
     });
 
     const completeTimer = setTimeout(() => {
+      setBotSummary(prev => ({
+        ...prev,
+        documentsProcessed: `${files.length} documents`,
+        entitiesCreated: 12,
+        relationshipsCreated: 11,
+        chunksStored: 17,
+      }));
       setIsComplete(true);
     }, 5500);
 
@@ -72,7 +293,7 @@ const BotCreationProgress = () => {
       stepTimers.forEach(clearTimeout);
       clearTimeout(completeTimer);
     };
-  }, []);
+  }, [addLog, updateStepStatus, files.length, steps]);
 
   const handleStartChatting = () => {
     navigate("/manage-chatbot", {
@@ -87,31 +308,202 @@ const BotCreationProgress = () => {
     });
   };
 
+  const handleRetry = () => {
+    navigate("/bot-creation");
+  };
+
+  // Error state UI
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-bold text-primary">CHATBOT AI</span>
+          </Link>
+        </header>
+
+        <main className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
+          <div className="w-full max-w-md text-center">
+            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Creation Failed</h1>
+            <p className="text-muted-foreground mb-6">{errorMessage}</p>
+
+            {/* Activity Log for debugging */}
+            {activityLogs.length > 0 && (
+              <div className="bg-card rounded-xl border border-border shadow-sm p-4 mb-6 text-left">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Activity Log
+                </h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {activityLogs.map((log, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <span className="text-muted-foreground font-mono text-xs">{log.time}</span>
+                      <span className={log.type === "error" ? "text-red-500" : "text-foreground"}>
+                        {log.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-4 justify-center">
+              <Button variant="outline" onClick={() => navigate("/dashboard")}>
+                Go to Dashboard
+              </Button>
+              <Button onClick={handleRetry} className="bg-primary hover:bg-primary/90">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          {/* Success Icon */}
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/10 flex items-center justify-center">
-            <Check className="w-12 h-12 text-green-500" />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-bold text-primary">CHATBOT AI</span>
+          </Link>
+        </header>
+
+        {/* Success Content */}
+        <main className="max-w-4xl mx-auto px-6 py-8">
+          {/* Success Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+                <Check className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-emerald-600">Chatbot Created Successfully!</h1>
+            </div>
+            <p className="text-muted-foreground ml-11">Your AI agent "{agentName}" is ready to go.</p>
           </div>
 
-          {/* Success Message */}
-          <h1 className="text-2xl font-bold text-foreground mb-2">
-            Chatbot Created Successfully!
-          </h1>
-          <p className="text-muted-foreground mb-8">
-            Your AI agent "{agentName}" is ready to go.
-          </p>
+          {/* Bot Summary Card */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6 mb-8">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Chatbot ID</span>
+                <span className="text-primary font-mono">{botSummary.chatbotId}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Tenant ID</span>
+                <span className="text-primary font-mono">{botSummary.tenantId}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Documents Processed</span>
+                <span className="text-primary">{botSummary.documentsProcessed}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Entities Created (Neo4j)</span>
+                <span className="text-primary">{botSummary.entitiesCreated}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-border">
+                <span className="text-muted-foreground">Relationships Created</span>
+                <span className="text-primary">{botSummary.relationshipsCreated}</span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-muted-foreground">Chunks Stored (Milvus)</span>
+                <span className="text-primary">{botSummary.chunksStored}</span>
+              </div>
+            </div>
+          </div>
 
-          {/* Single Action Button */}
-          <Button
-            onClick={handleStartChatting}
-            className="rounded-full px-8 bg-primary hover:bg-primary/90"
-          >
-            Go Explore!
-          </Button>
-        </div>
+          {/* Action Cards */}
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              What would you like to do next?
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* API Integration */}
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <Terminal className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">API Integration</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
+                  Get curl commands to integrate chat functionality into your application.
+                </p>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                  View Curl Commands
+                </Button>
+              </div>
+
+              {/* Shareable Chat Link */}
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Shareable Chat Link</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
+                  Generate a link with a pre-created session to share with others.
+                </p>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                  Generate Chat Link
+                </Button>
+              </div>
+
+              {/* Start Chatting */}
+              <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Start Chatting</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4 flex-1">
+                  Open the chat window here. You'll need to fill in your details first.
+                </p>
+                <Button
+                  onClick={handleStartChatting}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  Start Chatting
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Log */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              Activity Log
+            </h2>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {activityLogs.map((log, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    {log.type === "error" ? (
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <Clock className="w-4 h-4" />
+                    )}
+                    <span className="text-xs font-mono">{log.time}</span>
+                  </div>
+                  <span className={`text-sm ${
+                    log.type === "success" ? 'text-emerald-600' :
+                    log.type === "error" ? 'text-red-500' :
+                    'text-foreground'
+                  }`}>
+                    {log.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
