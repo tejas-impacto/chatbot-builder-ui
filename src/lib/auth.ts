@@ -6,6 +6,43 @@ const REFRESH_BUFFER = 2 * 60 * 1000;
 
 let refreshTimer: NodeJS.Timeout | null = null;
 
+// Response type for check-email endpoint
+export interface CheckEmailResponse {
+  emailExists: boolean;
+  hasPassword: boolean;
+  linkedProviders: string[];
+  primaryAuthMethod: string | null;
+}
+
+/**
+ * Check what authentication methods are available for an email
+ * @param email The email to check
+ * @returns CheckEmailResponse with available auth methods
+ */
+export const checkEmail = async (email: string): Promise<CheckEmailResponse> => {
+  try {
+    const response = await fetch('/api/v1/auth/check-email', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to check email');
+    }
+
+    return data.responseStructure.data;
+  } catch (error) {
+    console.error('Check email error:', error);
+    throw error;
+  }
+};
+
 export const refreshAccessToken = async (): Promise<boolean> => {
   try {
     const refreshToken = localStorage.getItem('refreshToken');

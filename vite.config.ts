@@ -7,19 +7,19 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 3000,
     hmr: {
       overlay: false,
     },
     proxy: {
       '/api-doc': {
-        target: 'https://dev-api-iform-doc.impactodigifin.xyz',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api-doc/, '/api'),
       },
       '/api': {
-        target: 'https://dev-api-iform.impactodigifin.xyz',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: true,
       },

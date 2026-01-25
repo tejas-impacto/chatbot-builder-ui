@@ -1,16 +1,22 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
+import AuthMethodInfo from "@/components/auth/AuthMethodInfo";
 import { useToast } from "@/hooks/use-toast";
-import { startTokenRefreshTimer, storeTokenTimestamp } from "@/lib/auth";
+import { startTokenRefreshTimer, storeTokenTimestamp, checkEmail, CheckEmailResponse } from "@/lib/auth";
+
+type LoginStep = 'email' | 'password';
 
 const Login = () => {
+  const [step, setStep] = useState<LoginStep>('email');
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [emailCheckResult, setEmailCheckResult] = useState<CheckEmailResponse | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -80,7 +86,48 @@ const Login = () => {
     }
   }, [navigate, toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email) {
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCheckingEmail(true);
+
+    try {
+      const result = await checkEmail(email);
+      setEmailCheckResult(result);
+
+      if (!result.emailExists) {
+        // Email doesn't exist - redirect to signup
+        toast({
+          title: "Account Not Found",
+          description: "No account found with this email. Please sign up.",
+        });
+        navigate('/signup');
+        return;
+      }
+
+      // Email exists - move to password step
+      setStep('password');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to check email. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -153,82 +200,171 @@ const Login = () => {
     }
   };
 
+  const handleBackToEmail = () => {
+    setStep('email');
+    setPassword('');
+    setEmailCheckResult(null);
+  };
+
+  // Render email step
+  if (step === 'email') {
+    return (
+      <AuthLayout variant="login">
+        <div>
+          <h1 className="text-4xl font-extrabold text-foreground leading-tight">
+            Hey,
+            <br />
+            Welcome Back!
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            We are very happy to see you back!
+          </p>
+
+          <form onSubmit={handleEmailSubmit} className="mt-8 space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ex: snappy@gmail.com"
+                className="auth-input"
+                required
+                autoFocus
+              />
+            </div>
+
+            <button type="submit" className="auth-button-primary" disabled={isCheckingEmail}>
+              {isCheckingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                  Checking...
+                </>
+              ) : (
+                "Continue"
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6">
+            <SocialLoginButtons />
+          </div>
+
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Don't have account?{" "}
+            <Link to="/signup" className="auth-link">
+              Sign Up here!
+            </Link>
+          </p>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  // Render password step
   return (
     <AuthLayout variant="login">
       <div>
+        <button
+          type="button"
+          onClick={handleBackToEmail}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+
         <h1 className="text-4xl font-extrabold text-foreground leading-tight">
-          Hey,
-          <br />
           Welcome Back!
         </h1>
         <p className="mt-2 text-muted-foreground">
-          We are very happy to see you back!
+          {email}
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ex: snappy@gmail.com"
-              className="auth-input"
-              required
+        {emailCheckResult && (
+          <div className="mt-4">
+            <AuthMethodInfo
+              hasPassword={emailCheckResult.hasPassword}
+              linkedProviders={emailCheckResult.linkedProviders}
+              primaryAuthMethod={emailCheckResult.primaryAuthMethod}
             />
           </div>
+        )}
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter Password"
-                className="auth-input pr-12"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
+        {/* Show password form if user has password */}
+        {emailCheckResult?.hasPassword && (
+          <form onSubmit={handlePasswordSubmit} className="mt-6 space-y-5">
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter Password"
+                  className="auth-input pr-12"
+                  required
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <Link to="/forgot-password" className="inline-block mt-2 text-sm auth-link">
+                Forgot Password?
+              </Link>
             </div>
-            <Link to="/forgot-password" className="inline-block mt-2 text-sm auth-link">
-              Forgot Password?
-            </Link>
+
+            <button type="submit" className="auth-button-primary" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                  Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Show Google button */}
+        {emailCheckResult && (
+          <div className={emailCheckResult.hasPassword ? "mt-6" : "mt-6"}>
+            <SocialLoginButtons
+              linkedProviders={emailCheckResult.linkedProviders}
+              showDivider={emailCheckResult.hasPassword}
+            />
           </div>
+        )}
 
-          <button type="submit" className="auth-button-primary" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
-                Logging in...
-              </>
-            ) : (
-              "Login"
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6">
-          <SocialLoginButtons />
-        </div>
+        {/* Show "Set up password" link for Google-only users */}
+        {emailCheckResult && !emailCheckResult.hasPassword && emailCheckResult.linkedProviders.includes('GOOGLE') && (
+          <div className="mt-6 text-center">
+            <Link to="/forgot-password" className="text-sm auth-link">
+              Set up password login instead
+            </Link>
+            <p className="mt-1 text-xs text-muted-foreground">
+              We'll send you an email to set up your password
+            </p>
+          </div>
+        )}
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
-          Don't have account?{" "}
-          <Link to="/signup" className="auth-link">
-            Sign Up here!
-          </Link>
+          Not you?{" "}
+          <button onClick={handleBackToEmail} className="auth-link">
+            Use a different email
+          </button>
         </p>
       </div>
     </AuthLayout>

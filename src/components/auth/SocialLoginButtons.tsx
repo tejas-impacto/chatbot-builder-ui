@@ -1,4 +1,13 @@
-const SocialLoginButtons = () => {
+import { Check } from "lucide-react";
+
+interface SocialLoginButtonsProps {
+  linkedProviders?: string[];
+  showDivider?: boolean;
+}
+
+const SocialLoginButtons = ({ linkedProviders = [], showDivider = true }: SocialLoginButtonsProps) => {
+  const isGoogleLinked = linkedProviders.includes('GOOGLE');
+
   const handleGoogleLogin = () => {
     // Use direct navigation instead of fetch() to avoid CORS issues with OAuth redirects
     const currentPath = window.location.pathname;
@@ -7,14 +16,16 @@ const SocialLoginButtons = () => {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-input" />
+      {showDivider && (
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-input" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-4 text-muted-foreground">OR</span>
+          </div>
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-4 text-muted-foreground">OR</span>
-        </div>
-      </div>
+      )}
 
       <button
         type="button"
@@ -39,7 +50,12 @@ const SocialLoginButtons = () => {
             d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
           />
         </svg>
-        <span className="text-sm font-medium">Continue with Google</span>
+        <span className="text-sm font-medium">
+          {isGoogleLinked ? 'Continue with Google' : 'Continue with Google'}
+        </span>
+        {isGoogleLinked && (
+          <Check className="w-4 h-4 text-green-600" />
+        )}
       </button>
     </div>
   );
