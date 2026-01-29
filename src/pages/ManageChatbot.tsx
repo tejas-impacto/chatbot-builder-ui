@@ -8,7 +8,7 @@ import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import LeadFormModal from "@/components/chat/LeadFormModal";
-import { submitLeadForm, sendMessageWithStream } from "@/lib/chatApi";
+import { createChatServerSession, submitLeadForm, sendMessageWithStream } from "@/lib/chatApi";
 import { useToast } from "@/hooks/use-toast";
 import type { UserInfo } from "@/types/chat";
 
@@ -39,11 +39,11 @@ const ManageChatbot = () => {
   const [showLeadForm, setShowLeadForm] = useState(state.showLeadForm || false);
   const [isLeadFormSubmitting, setIsLeadFormSubmitting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [sessionId] = useState<string | null>(state.sessionToken || null);
+  const [sessionId, setSessionId] = useState<string | null>(state.sessionToken || null);
   const [chatbotId] = useState<string>(state.chatbotId || "demo-chatbot");
   const [chatbotName] = useState<string>(state.chatbotName || "AI Assistant");
   const [tenantId] = useState<string>(state.tenantId || localStorage.getItem('tenantId') || "");
-  const [isDemoMode] = useState<boolean>(state.demoMode || !state.sessionToken);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(state.demoMode || !state.chatbotId);
 
   // Initialize with welcome message
   useEffect(() => {
@@ -60,12 +60,35 @@ const ManageChatbot = () => {
     setIsLeadFormSubmitting(true);
 
     try {
-      // Submit lead form to API if we have the required data
-      if (sessionId && tenantId && chatbotId) {
-        await submitLeadForm(tenantId, chatbotId, sessionId, userInfo);
+      // Step 1: Create a chat session via Chat Server (for non-demo mode)
+      if (chatbotId && chatbotId !== "demo-chatbot" && tenantId) {
+        console.log("Creating chat session via Chat Server");
+        const sessionResponse = await createChatServerSession(
+          tenantId,
+          chatbotId,
+          chatbotName,
+          `Hello! I'm ${chatbotName}. How can I help you today?`
+        );
+        const newSessionId = sessionResponse.session_id;
+        console.log("Chat session created:", newSessionId);
+
+        // Update session state
+        setSessionId(newSessionId);
+        setIsDemoMode(false);
+
+        // Step 2: Submit lead form via Main API
+        await submitLeadForm(tenantId, chatbotId, newSessionId, userInfo);
+        console.log("Lead form submitted successfully");
+
         toast({
           title: "Success",
           description: "Thank you! You can now start chatting.",
+        });
+      } else {
+        // Demo mode - no real session
+        toast({
+          title: "Demo Mode",
+          description: "You can now test the chat interface.",
         });
       }
       setShowLeadForm(false);
@@ -73,10 +96,10 @@ const ManageChatbot = () => {
       console.error("Failed to submit lead form:", error);
       toast({
         title: "Error",
-        description: "Failed to submit form. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to submit form. Please try again.",
         variant: "destructive",
       });
-      // Still close the form so user can continue
+      // Still close the form so user can continue in demo mode
       setShowLeadForm(false);
     } finally {
       setIsLeadFormSubmitting(false);

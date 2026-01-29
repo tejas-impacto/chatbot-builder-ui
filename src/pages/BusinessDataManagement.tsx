@@ -81,6 +81,7 @@ const BusinessDataManagement = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -337,6 +338,55 @@ const BusinessDataManagement = () => {
     }
   };
 
+  const handleDeleteDocument = async (documentId: string, documentName: string) => {
+    try {
+      const accessToken = await getValidAccessToken();
+
+      if (!accessToken) {
+        toast({
+          title: "Error",
+          description: "Session expired. Please login again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setDeletingId(documentId);
+
+      const response = await fetch(
+        `/api-doc/v1/documents/${documentId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'accept': '*/*',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete document');
+      }
+
+      // Remove document from local state
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+
+      toast({
+        title: "Success",
+        description: `"${documentName}" deleted successfully.`,
+      });
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      toast({
+        title: "Error",
+        description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
@@ -465,8 +515,18 @@ const BusinessDataManagement = () => {
                           <Eye className="w-4 h-4 mr-1" />
                           View
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                          <Trash2 className="w-4 h-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteDocument(file.id, file.name)}
+                          disabled={deletingId === file.id}
+                        >
+                          {deletingId === file.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </div>

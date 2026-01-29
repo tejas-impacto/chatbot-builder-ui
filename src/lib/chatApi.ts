@@ -1,30 +1,69 @@
 import { getValidAccessToken } from './auth';
-import type { UserInfo, CreateSessionResponse } from '@/types/chat';
-
-const CHAT_SERVER_URL = 'http://172.16.0.99:8002';
+import type { UserInfo } from '@/types/chat';
 
 /**
- * Create a new chat session via Main API (authenticated)
- * @param chatbotId - The chatbot identifier
+ * Chat session response structure
+ */
+export interface ChatServerSessionResponse {
+  session_id: string;
+  chatbot_id: string;
+  tenant_id: string;
+  status: string;
+  chatbot_config: {
+    agent_name: string;
+    welcome_message: string;
+  };
+  lead_form_required: boolean;
+  lead_id?: string;
+  created_at?: string;
+}
+
+/**
+ * Generate a unique fingerprint for anonymous sessions
+ */
+const generateFingerprint = (): string => {
+  const nav = window.navigator;
+  const screen = window.screen;
+  const fingerprint = [
+    nav.userAgent,
+    nav.language,
+    screen.width,
+    screen.height,
+    screen.colorDepth,
+    new Date().getTimezoneOffset(),
+    Date.now().toString(36),
+    Math.random().toString(36).substring(2),
+  ].join('|');
+  return btoa(fingerprint).substring(0, 32);
+};
+
+/**
+ * Create a new anonymous chat session
+ * @param tenantId - The tenant identifier
+ * @param chatbotId - The chatbot/bot identifier
+ * @param agentName - The agent name for chatbot config
+ * @param welcomeMessage - The welcome message for chatbot config
  * @returns Session response with sessionToken
  */
-export const createChatSession = async (chatbotId: string): Promise<CreateSessionResponse> => {
-  const accessToken = await getValidAccessToken();
+export const createChatServerSession = async (
+  tenantId: string,
+  chatbotId: string,
+  agentName: string = 'AI Assistant',
+  welcomeMessage: string = 'Hello! How can I help you today?'
+): Promise<ChatServerSessionResponse> => {
+  const fingerprint = generateFingerprint();
 
-  if (!accessToken) {
-    throw new Error('No access token available');
-  }
-
-  const response = await fetch('/api/v1/chat/sessions', {
+  const response = await fetch('/api/v1/chat/sessions/anonymous', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       'accept': '*/*',
+      'X-Tenant-Id': tenantId,
     },
     body: JSON.stringify({
-      chatbotId,
+      botId: chatbotId,
       channelType: 'TEXT',
+      fingerprint,
       metadata: {},
     }),
   });
@@ -34,8 +73,24 @@ export const createChatSession = async (chatbotId: string): Promise<CreateSessio
     throw new Error(error.message || 'Failed to create chat session');
   }
 
-  return response.json();
+  // Map the API response to ChatServerSessionResponse format
+  const data = await response.json();
+  const sessionData = data.responseStructure?.data;
+
+  return {
+    session_id: sessionData?.sessionToken || '',
+    chatbot_id: chatbotId,
+    tenant_id: tenantId,
+    status: 'active',
+    chatbot_config: {
+      agent_name: sessionData?.chatbotName || agentName,
+      welcome_message: welcomeMessage,
+    },
+    lead_form_required: true,
+    lead_id: sessionData?.leadId,
+  };
 };
+
 
 /**
  * Get session info via Main API
@@ -62,8 +117,8 @@ export const getSessionInfo = async (sessionToken: string) => {
  * Submit lead form to Main API (authenticated)
  * @param tenantId - Tenant identifier
  * @param botId - Bot identifier
- * @param sessionId - Session ID from createChatSession
- * @param userInfo - User information (firstName, lastName, email, phone)
+ * @param sessionId - Session ID from createChatServerSession
+ * @param userInfo - User information (firstName, lastName, email, phone, capturedData)
  */
 export const submitLeadForm = async (
   tenantId: string,
@@ -77,6 +132,21 @@ export const submitLeadForm = async (
     throw new Error('No access token available');
   }
 
+  const payload: Record<string, unknown> = {
+    tenantId,
+    botId,
+    sessionId,
+    firstName: userInfo.firstName,
+    lastName: userInfo.lastName || '',
+    email: userInfo.email,
+    phone: userInfo.phone || '',
+  };
+
+  // Include capturedData if provided
+  if (userInfo.capturedData && Object.keys(userInfo.capturedData).length > 0) {
+    payload.capturedData = userInfo.capturedData;
+  }
+
   const response = await fetch('/api/v1/leads/interactions', {
     method: 'POST',
     headers: {
@@ -84,15 +154,7 @@ export const submitLeadForm = async (
       'Content-Type': 'application/json',
       'accept': '*/*',
     },
-    body: JSON.stringify({
-      tenantId,
-      botId,
-      sessionId,
-      firstName: userInfo.firstName,
-      lastName: userInfo.lastName || '',
-      email: userInfo.email,
-      phone: userInfo.phone || '',
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -107,7 +169,7 @@ export const submitLeadForm = async (
  * Send a message and receive streaming response via SSE
  * @param tenantId - Tenant identifier
  * @param chatbotId - Chatbot identifier
- * @param sessionId - Session ID
+ * @param sessionToken - Session token from createChatServerSession
  * @param message - User message text
  * @param onToken - Callback for each token received
  * @param onComplete - Callback when streaming is complete
@@ -116,30 +178,30 @@ export const submitLeadForm = async (
 export const sendMessageWithStream = async (
   tenantId: string,
   chatbotId: string,
-  sessionId: string,
+  sessionToken: string,
   message: string,
   onToken: (token: string) => void,
   onComplete: () => void,
   onError: (error: Error) => void
 ): Promise<void> => {
   try {
-    const response = await fetch(
-      `${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/message`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          session_id: sessionId,
-        }),
-      }
-    );
+    const response = await fetch('/api/v1/chat/message/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'text/event-stream',
+        'X-Session-Token': sessionToken,
+        'X-Tenant-Id': tenantId,
+        'X-Bot-Id': chatbotId,
+      },
+      body: JSON.stringify({
+        query: message,
+      }),
+    });
 
     if (!response.ok) {
-      throw new Error('Failed to send message');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to send message');
     }
 
     const reader = response.body?.getReader();
@@ -148,6 +210,8 @@ export const sendMessageWithStream = async (
     if (!reader) {
       throw new Error('No response body');
     }
+
+    let currentEvent = '';
 
     // Read the stream
     while (true) {
@@ -158,17 +222,23 @@ export const sendMessageWithStream = async (
       const lines = chunk.split('\n');
 
       for (const line of lines) {
-        // Parse SSE format: "data: {...}"
-        if (line.startsWith('data: ')) {
+        // Parse SSE event type
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        }
+        // Parse SSE data
+        else if (line.startsWith('data: ')) {
           try {
             const data = line.slice(6); // Remove "data: " prefix
             const parsed = JSON.parse(data);
 
-            if (parsed.content) {
+            // Handle token event
+            if (currentEvent === 'token' && parsed.content) {
               onToken(parsed.content);
             }
 
-            if (parsed.complete) {
+            // Handle done event
+            if (currentEvent === 'done') {
               onComplete();
               return;
             }

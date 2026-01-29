@@ -1,92 +1,139 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Grid, HelpCircle, Home, FileText, Check } from "lucide-react";
+import { MessageSquare, Check, X, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useBotCreationWebSocket, type ProgressData, type StatusDetails } from "@/hooks/useBotCreationWebSocket";
+import { cancelBotCreation } from "@/lib/botApi";
+import { useToast } from "@/hooks/use-toast";
 
-interface StepStatus {
-  id: number;
-  title: string;
-  icon: React.ElementType;
-  status: "pending" | "done";
+interface BotConfig {
+  company_overview: string;
+  product_features: string;
+  customer_faqs: string;
+  conversation_style: {
+    chat_length: string;
+    chat_guidelines: string;
+    voice_length: string;
+    voice_guidelines: string;
+  };
+  purpose_category: string;
+  persona: string;
+  tone_of_voice: string;
+  agent_name: string;
 }
 
 interface LocationState {
+  botId?: string;
+  ticket?: string;
+  sessionId?: string;
+  agentName?: string;
+  tenantId?: string;
+  documentsUploaded?: number;
+  botConfig?: BotConfig;
+  // Legacy fields for backwards compatibility
   sessionToken?: string;
   chatbotId?: string;
   chatbotName?: string;
-  tenantId?: string;
-  documentsUploaded?: number;
-  agentName?: string;
   demoMode?: boolean;
 }
 
 const BotCreationProgress = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const state = (location.state as LocationState) || {};
 
+  // Support both new and legacy state formats
+  const botId = state.botId || state.chatbotId || "";
+  const ticket = state.ticket || "";
   const agentName = state.agentName || state.chatbotName || "AI Agent";
-  const chatbotId = state.chatbotId || "demo-chatbot";
   const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
-  const sessionToken = state.sessionToken;
-  const isDemoMode = state.demoMode || !sessionToken;
+  const hasWebSocketConnection = !!(state.botId && state.ticket);
+  const botConfig = state.botConfig || null;
 
   const [isComplete, setIsComplete] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
-  const [steps, setSteps] = useState<StepStatus[]>([
-    { id: 1, title: "Knowledge Base", icon: Grid, status: "pending" },
-    { id: 2, title: "Conversation Style", icon: HelpCircle, status: "pending" },
-    { id: 3, title: "Purpose Category", icon: Home, status: "pending" },
-    { id: 4, title: "Persona & Voice", icon: FileText, status: "pending" },
-    { id: 5, title: "Documents Upload", icon: FileText, status: "pending" },
-  ]);
+  const [currentStatus, setCurrentStatus] = useState("Initializing...");
+  const [stageDisplay, setStageDisplay] = useState("Getting Started");
+  const [stageIcon, setStageIcon] = useState("🚀");
+  const [statusDetails, setStatusDetails] = useState<StatusDetails | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
-  useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setCurrentProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 2;
-      });
-    }, 100);
-
-    const stepTimers = steps.map((_, index) => {
-      return setTimeout(() => {
-        setSteps((prevSteps) =>
-          prevSteps.map((step, i) =>
-            i <= index ? { ...step, status: "done" as const } : step
-          )
-        );
-      }, (index + 1) * 1000);
-    });
-
-    const completeTimer = setTimeout(() => {
-      setIsComplete(true);
-    }, 5500);
-
-    return () => {
-      clearInterval(progressInterval);
-      stepTimers.forEach(clearTimeout);
-      clearTimeout(completeTimer);
-    };
+  // WebSocket progress handler
+  const handleProgress = useCallback((data: ProgressData) => {
+    setCurrentProgress(data.progress);
+    setCurrentStatus(data.message);
+    setStageDisplay(data.stageDisplay);
+    setStageIcon(data.stageIcon);
+    setStatusDetails(data.details || null);
   }, []);
 
+  // WebSocket complete handler
+  const handleComplete = useCallback(() => {
+    setCurrentProgress(100);
+    setCurrentStatus("Complete!");
+    setStageDisplay("All Done!");
+    setStageIcon("🎉");
+    setIsComplete(true);
+  }, []);
+
+  // WebSocket error handler
+  const handleError = useCallback((err: string) => {
+    setError(err);
+    toast({
+      title: "Error",
+      description: err,
+      variant: "destructive",
+    });
+  }, [toast]);
+
+  // Connect to WebSocket if we have the necessary data
+  const { isConnected } = useBotCreationWebSocket(
+    hasWebSocketConnection ? botId : null,
+    hasWebSocketConnection ? ticket : null,
+    botConfig,
+    handleProgress,
+    handleComplete,
+    handleError
+  );
+
+  // Cancel bot creation
+  const handleCancel = async () => {
+    if (!botId) {
+      navigate('/dashboard');
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await cancelBotCreation(botId);
+      toast({
+        title: "Cancelled",
+        description: "Bot creation has been cancelled.",
+      });
+      navigate('/dashboard');
+    } catch (e) {
+      console.error('Failed to cancel:', e);
+      // Navigate anyway
+      navigate('/dashboard');
+    }
+  };
+
+  // Navigate to chat interface
   const handleStartChatting = () => {
     navigate("/manage-chatbot", {
       state: {
-        sessionToken,
-        chatbotId,
+        chatbotId: botId,
         chatbotName: agentName,
         tenantId,
         showLeadForm: true,
-        demoMode: isDemoMode,
       },
     });
   };
 
+  // Success screen
   if (isComplete) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -116,6 +163,45 @@ const BotCreationProgress = () => {
     );
   }
 
+  // Error screen
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          {/* Error Icon */}
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-destructive/10 flex items-center justify-center">
+            <X className="w-12 h-12 text-destructive" />
+          </div>
+
+          {/* Error Message */}
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Something went wrong
+          </h1>
+          <p className="text-muted-foreground mb-8">
+            {error}
+          </p>
+
+          {/* Retry/Back Button */}
+          <div className="flex gap-4 justify-center">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/bot-creation')}
+              className="rounded-full px-6"
+            >
+              Try Again
+            </Button>
+            <Button
+              onClick={() => navigate('/dashboard')}
+              className="rounded-full px-6"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -126,57 +212,75 @@ const BotCreationProgress = () => {
           </div>
           <span className="text-lg font-bold text-primary">CHATBOT AI</span>
         </Link>
+        <Button
+          variant="outline"
+          onClick={handleCancel}
+          disabled={isCancelling}
+          className="rounded-full"
+        >
+          {isCancelling ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Cancelling...
+            </>
+          ) : (
+            <>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </>
+          )}
+        </Button>
       </header>
 
       {/* Progress Content */}
       <main className="flex items-center justify-center min-h-[calc(100vh-80px)] px-6">
         <div className="w-full max-w-md">
-          {/* Steps List */}
-          <div className="space-y-6">
-            {steps.map((step) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-4 p-4 rounded-xl transition-all duration-300 ${
-                    step.status === "done" ? "bg-card shadow-md" : "bg-transparent"
-                  }`}
-                >
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                      step.status === "done"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Step {step.id}</span>
-                      {step.status === "done" && (
-                        <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-medium rounded-full">
-                          Done
-                        </span>
-                      )}
-                    </div>
-                    <h3 className={`font-semibold ${
-                      step.status === "done" ? "text-primary" : "text-muted-foreground"
-                    }`}>
-                      {step.title}
-                    </h3>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {/* Connection Status */}
+          {hasWebSocketConnection && (
+            <div className="mb-6 text-center">
+              <span className={`inline-flex items-center gap-2 text-sm ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-muted-foreground animate-pulse'}`} />
+                {isConnected ? 'Connected' : 'Connecting...'}
+              </span>
+            </div>
+          )}
 
-          {/* Progress Bar */}
-          <div className="mt-8">
-            <Progress value={currentProgress} className="h-2" />
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              Creating your AI agent...
+          {/* Dynamic Status Card */}
+          <div className="bg-card rounded-2xl border border-border shadow-lg p-8">
+            {/* Stage Icon */}
+            <div className="text-center mb-6">
+              <span className="text-6xl">{stageIcon}</span>
+            </div>
+
+            {/* Stage Display */}
+            <h2 className="text-xl font-bold text-center text-foreground mb-6">
+              {stageDisplay}
+            </h2>
+
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <Progress value={currentProgress} className="h-3" />
+              <div className="flex justify-between mt-2">
+                <span className="text-sm text-muted-foreground">{currentProgress}%</span>
+                {statusDetails?.total && (
+                  <span className="text-sm text-muted-foreground">
+                    {statusDetails.completed || 0}/{statusDetails.total} chunks
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Current Status Message */}
+            <p className="text-center text-muted-foreground mb-4">
+              {currentStatus || "Creating your AI agent..."}
             </p>
+
+            {/* Document Name (if available) */}
+            {statusDetails?.document && (
+              <p className="text-center text-sm text-muted-foreground/70 truncate">
+                📄 {statusDetails.document}
+              </p>
+            )}
           </div>
         </div>
       </main>

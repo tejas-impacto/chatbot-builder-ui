@@ -61,7 +61,7 @@ const menuItems: MenuItem[] = [
     url: "/manage-chatbot", 
     icon: Bot,
     subItems: [
-      { title: "Token AccessManagement", url: "/manage-chatbot/token" },
+      { title: "Bots Available", url: "/manage-chatbot/bots" },
       { title: "End Points", url: "/manage-chatbot/endpoints" },
       { title: "Demo Chat Interface", url: "/manage-chatbot" },
       { title: "Chat History", url: "/manage-chatbot/history" },
@@ -72,7 +72,7 @@ const menuItems: MenuItem[] = [
     url: "/manage-voicebot", 
     icon: Mic,
     subItems: [
-      { title: "Token AccessManagement", url: "/manage-voicebot/token" },
+      { title: "Bots Available", url: "/manage-voicebot/bots" },
       { title: "End Points", url: "/manage-voicebot/endpoints" },
       { title: "Demo Voice Interface", url: "/manage-voicebot" },
       { title: "Chat History", url: "/manage-voicebot/history" },

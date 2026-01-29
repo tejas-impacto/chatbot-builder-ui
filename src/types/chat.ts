@@ -37,6 +37,7 @@ export interface UserInfo {
   firstName: string;
   lastName?: string;
   phone?: string;
+  capturedData?: Record<string, string>;
 }
 
 export interface SubmitLeadFormRequest {

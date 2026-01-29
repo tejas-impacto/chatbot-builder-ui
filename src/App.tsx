@@ -18,6 +18,7 @@ import BusinessDataManagement from "./pages/BusinessDataManagement";
 import BusinessDataOverview from "./pages/BusinessDataOverview";
 import ManageChatbot from "./pages/ManageChatbot";
 import ManageVoicebot from "./pages/ManageVoicebot";
+import BotsAvailable from "./pages/BotsAvailable";
 import ChatbotEndpoints from "./pages/ChatbotEndpoints";
 import CRM from "./pages/CRM";
 import NotFound from "./pages/NotFound";
@@ -51,6 +52,7 @@ const App = () => {
           <Route path="/business-data" element={<BusinessDataManagement />} />
           <Route path="/business-data/overview" element={<BusinessDataOverview />} />
           <Route path="/manage-chatbot" element={<ManageChatbot />} />
+          <Route path="/manage-chatbot/bots" element={<BotsAvailable />} />
           <Route path="/manage-chatbot/endpoints" element={<ChatbotEndpoints />} />
           <Route path="/manage-chatbot/*" element={<ManageChatbot />} />
           <Route path="/manage-voicebot" element={<ManageVoicebot />} />

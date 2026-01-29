@@ -768,7 +768,7 @@ IMPORTANT:
 
       uploadFormData.append('tenantId', tenantId);
       uploadFormData.append('documentType', 'BUSINESS');
-      uploadFormData.append('chatbotId', '');
+      uploadFormData.append('botId', '');
       uploadFormData.append('description', formData.documentDescription || '');
 
       const uploadResponse = await fetch(
