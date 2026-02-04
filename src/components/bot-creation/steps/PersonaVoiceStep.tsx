@@ -15,6 +15,7 @@ import {
 interface PersonaVoiceStepProps {
   data: BotCreationData;
   onChange: (data: Partial<BotCreationData>) => void;
+  errors?: Record<string, string>;
 }
 
 const personaOptions = [
@@ -34,15 +35,15 @@ const voiceToneOptions = [
   { value: "professional", label: "Professional", description: "Formal and business - Like" },
 ];
 
-const PersonaVoiceStep = ({ data, onChange }: PersonaVoiceStepProps) => {
+const PersonaVoiceStep = ({ data, onChange, errors }: PersonaVoiceStepProps) => {
   return (
     <div className="space-y-6">
       {/* Select Persona */}
       <div className="space-y-3">
         <Label className="text-sm font-medium text-foreground">
-          Select Persona
+          Select Persona <span className="text-destructive">*</span>
         </Label>
-        <div className="grid grid-cols-4 gap-3">
+        <div className={`grid grid-cols-4 gap-3 ${errors?.persona ? 'rounded-xl ring-1 ring-destructive p-1' : ''}`}>
           {personaOptions.map((option) => {
             const Icon = option.icon;
             return (
@@ -68,6 +69,9 @@ const PersonaVoiceStep = ({ data, onChange }: PersonaVoiceStepProps) => {
             );
           })}
         </div>
+        {errors?.persona && (
+          <p className="text-sm text-destructive">{errors.persona}</p>
+        )}
       </div>
 
       {/* Tone of the voice */}
@@ -105,14 +109,19 @@ const PersonaVoiceStep = ({ data, onChange }: PersonaVoiceStepProps) => {
       {/* Name of the agent */}
       <div className="space-y-2">
         <Label className="text-sm font-medium text-foreground">
-          Name of the agent
+          Name of the agent <span className="text-destructive">*</span>
         </Label>
         <Input
           placeholder="Enter your agent name"
           value={data.agentName}
           onChange={(e) => onChange({ agentName: e.target.value })}
-          className="rounded-xl border-input focus:ring-2 focus:ring-primary/20"
+          className={`rounded-xl focus:ring-2 focus:ring-primary/20 ${
+            errors?.agentName ? 'border-destructive' : 'border-input'
+          }`}
         />
+        {errors?.agentName && (
+          <p className="text-sm text-destructive">{errors.agentName}</p>
+        )}
       </div>
     </div>
   );

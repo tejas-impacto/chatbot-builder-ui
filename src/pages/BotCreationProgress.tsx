@@ -3,8 +3,10 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Check, X, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useBotCreationWebSocket, type ProgressData, type StatusDetails } from "@/hooks/useBotCreationWebSocket";
-import { cancelBotCreation } from "@/lib/botApi";
+import { useBotCreationWebSocket, type ProgressData, type StatusDetails, type ClarificationRequest } from "@/hooks/useBotCreationWebSocket";
+import { ClarificationQuestionDialog } from "@/components/bot-creation/ClarificationQuestionDialog";
+import { cancelBotCreation, deleteBot } from "@/lib/botApi";
+import { SessionExpiredError, logout } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 interface BotConfig {
@@ -33,7 +35,6 @@ interface LocationState {
   botConfig?: BotConfig;
   // Legacy fields for backwards compatibility
   sessionToken?: string;
-  chatbotId?: string;
   chatbotName?: string;
   demoMode?: boolean;
 }
@@ -44,8 +45,8 @@ const BotCreationProgress = () => {
   const { toast } = useToast();
   const state = (location.state as LocationState) || {};
 
-  // Support both new and legacy state formats
-  const botId = state.botId || state.chatbotId || "";
+  // Get botId from state
+  const botId = state.botId || "";
   const ticket = state.ticket || "";
   const agentName = state.agentName || state.chatbotName || "AI Agent";
   const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
@@ -60,6 +61,10 @@ const BotCreationProgress = () => {
   const [statusDetails, setStatusDetails] = useState<StatusDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Clarification question state
+  const [clarificationRequest, setClarificationRequest] = useState<ClarificationRequest | null>(null);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
 
   // WebSocket progress handler
   const handleProgress = useCallback((data: ProgressData) => {
@@ -89,17 +94,40 @@ const BotCreationProgress = () => {
     });
   }, [toast]);
 
+  // Clarification request handler
+  const handleClarificationRequest = useCallback((data: ClarificationRequest) => {
+    setClarificationRequest(data);
+    // Update stage display to show we're waiting for input
+    setStageDisplay("Clarification Needed");
+    setStageIcon("💬");
+    setCurrentStatus("Please answer the questions to continue");
+  }, []);
+
   // Connect to WebSocket if we have the necessary data
-  const { isConnected } = useBotCreationWebSocket(
+  const { isConnected, sendClarificationResponse } = useBotCreationWebSocket(
     hasWebSocketConnection ? botId : null,
     hasWebSocketConnection ? ticket : null,
     botConfig,
     handleProgress,
     handleComplete,
-    handleError
+    handleError,
+    handleClarificationRequest
   );
 
-  // Cancel bot creation
+  // Handle clarification answer submission
+  const handleSubmitClarificationAnswer = useCallback((answers: Record<string, string>) => {
+    setIsSubmittingAnswer(true);
+    sendClarificationResponse(answers);
+
+    // Clear the clarification request and resume normal display
+    setClarificationRequest(null);
+    setIsSubmittingAnswer(false);
+    setStageDisplay("Processing...");
+    setStageIcon("⏳");
+    setCurrentStatus("Processing your answers...");
+  }, [sendClarificationResponse]);
+
+  // Cancel bot creation and delete the bot
   const handleCancel = async () => {
     if (!botId) {
       navigate('/dashboard');
@@ -108,13 +136,30 @@ const BotCreationProgress = () => {
 
     setIsCancelling(true);
     try {
+      // First cancel the bot creation session
       await cancelBotCreation(botId);
+
+      // Then delete the bot completely
+      if (tenantId) {
+        await deleteBot(botId, tenantId);
+      }
+
       toast({
         title: "Cancelled",
-        description: "Bot creation has been cancelled.",
+        description: "Bot creation has been cancelled and bot deleted.",
       });
       navigate('/dashboard');
     } catch (e) {
+      // Handle session expiration gracefully
+      if (e instanceof SessionExpiredError) {
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        });
+        logout();
+        return;
+      }
       console.error('Failed to cancel:', e);
       // Navigate anyway
       navigate('/dashboard');
@@ -125,7 +170,7 @@ const BotCreationProgress = () => {
   const handleStartChatting = () => {
     navigate("/manage-chatbot", {
       state: {
-        chatbotId: botId,
+        botId: botId,
         chatbotName: agentName,
         tenantId,
         showLeadForm: true,
@@ -284,6 +329,14 @@ const BotCreationProgress = () => {
           </div>
         </div>
       </main>
+
+      {/* Clarification Question Dialog */}
+      <ClarificationQuestionDialog
+        open={!!clarificationRequest}
+        clarificationRequest={clarificationRequest}
+        onSubmit={handleSubmitClarificationAnswer}
+        isSubmitting={isSubmittingAnswer}
+      />
     </div>
   );
 };

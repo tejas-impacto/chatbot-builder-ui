@@ -1,45 +1,102 @@
 import { useState } from "react";
-import { RefreshCw, Bot, Phone, Volume2, Mic } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { RefreshCw, Bot, Settings2, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
+import { VoiceWaveform } from "@/components/voice/VoiceWaveform";
+import { VoiceControls } from "@/components/voice/VoiceControls";
+import { TranscriptionDisplay } from "@/components/voice/TranscriptionDisplay";
+import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
+import { useToast } from "@/hooks/use-toast";
 
-interface Message {
-  id: number;
-  text: string;
-  sender: "bot" | "user";
-  time: string;
+interface LocationState {
+  botId: string;
+  tenantId: string;
+  botName: string;
 }
 
 const ManageVoicebot = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: "Hello! I'm your voice assistant. Click the call button to start a conversation.", sender: "bot", time: "10:00 AM" },
-    { id: 2, text: "Voice call connected. How can I help you today?", sender: "bot", time: "10:00 AM" }
-  ]);
-  const [voiceSpeed, setVoiceSpeed] = useState([50]);
-  const [voicePitch, setVoicePitch] = useState([50]);
-  const [isCallActive, setIsCallActive] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const locationState = location.state as LocationState | null;
+
+  // Voice settings
+  const [selectedVoice, setSelectedVoice] = useState("alloy");
+  const [selectedLanguage, setSelectedLanguage] = useState("en");
+
+  // Get bot info from location state or use defaults for testing
+  const tenantId = locationState?.tenantId || localStorage.getItem("tenantId") || "";
+  const botId = locationState?.botId || "";
+  const botName = locationState?.botName || "Voice Assistant";
+
+  // Voice chat hook
+  const {
+    state,
+    transcriptions,
+    responses,
+    audioLevel,
+    startCall,
+    endCall,
+    toggleMute,
+    interrupt,
+    isConnecting,
+  } = useVoiceChat({
+    tenantId,
+    botId,
+    botName,
+    voice: selectedVoice,
+    language: selectedLanguage,
+    onError: (error) => {
+      toast({
+        title: "Voice Chat Error",
+        description: error,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleResetChat = () => {
-    setMessages([
-      { id: 1, text: "Hello! I'm your voice assistant. Click the call button to start a conversation.", sender: "bot", time: "10:00 AM" }
-    ]);
-    setIsCallActive(false);
+    if (state.isCallActive) {
+      endCall();
+    }
   };
 
-  const toggleCall = () => {
-    setIsCallActive(!isCallActive);
-    if (!isCallActive) {
-      setMessages(prev => [...prev, {
-        id: prev.length + 1,
-        text: "Voice call connected. How can I help you today?",
-        sender: "bot",
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
+  const handleToggleCall = async () => {
+    if (state.isCallActive) {
+      endCall();
+    } else {
+      if (!botId) {
+        toast({
+          title: "No Bot Selected",
+          description: "Please select a voicebot to start a conversation.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await startCall();
+    }
+  };
+
+  const getStateBadge = () => {
+    switch (state.currentState) {
+      case "VOICE_STATE_LISTENING":
+        return <Badge variant="default" className="bg-green-500">Listening</Badge>;
+      case "VOICE_STATE_RECEIVING":
+        return <Badge variant="default" className="bg-blue-500">Receiving</Badge>;
+      case "VOICE_STATE_PROCESSING":
+        return <Badge variant="default" className="bg-yellow-500">Processing</Badge>;
+      case "VOICE_STATE_SPEAKING":
+        return <Badge variant="default" className="bg-purple-500">Speaking</Badge>;
+      default:
+        return <Badge variant="secondary">Idle</Badge>;
     }
   };
 
@@ -47,175 +104,207 @@ const ManageVoicebot = () => {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
         <DashboardSidebar />
-        
+
         <main className="flex-1 overflow-auto flex flex-col">
           <DashboardHeader />
 
           <div className="p-6 flex-1 flex flex-col">
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Demo Voice Chat Interface</h1>
-                <p className="text-muted-foreground">Test your voice bot with this interactive demo</p>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(-1)}
+                  className="rounded-full"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">Voice Chat Interface</h1>
+                  <p className="text-muted-foreground">
+                    {botName ? `Testing: ${botName}` : "Select a voicebot to start"}
+                  </p>
+                </div>
               </div>
-              <Button 
+              <Button
                 onClick={handleResetChat}
-                variant="outline" 
+                variant="outline"
                 className="rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                disabled={!state.isCallActive}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Reset Chat
+                End & Reset
               </Button>
             </div>
+
+            {/* No Bot Warning */}
+            {!botId && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No voicebot selected. Please go back and select a voicebot to test, or navigate from the Bots Available page.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Error Display */}
+            {state.error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{state.error}</AlertDescription>
+              </Alert>
+            )}
 
             {/* Content Grid */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Voice Chat Container */}
-              <div className="lg:col-span-2 border border-border rounded-2xl bg-background flex flex-col">
+              <div className="lg:col-span-2 border border-border rounded-2xl bg-background flex flex-col min-h-[600px]">
                 {/* Chat Header */}
                 <div className="p-4 border-b border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Bot className="w-5 h-5 text-primary" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{botName}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {state.isConnected ? "Connected" : "Not connected"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">Voice Conversation</h3>
-                      <p className="text-sm text-muted-foreground">Interactive voice chat demonstration</p>
-                    </div>
+                    {getStateBadge()}
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                  {messages.map((message) => (
-                    <div 
-                      key={message.id}
-                      className="flex items-start gap-3"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="max-w-[70%]">
-                        <div className="p-3 rounded-2xl bg-muted">
-                          <p className="text-sm">{message.text}</p>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">{message.time}</p>
-                      </div>
-                    </div>
-                  ))}
+                {/* Transcription Display */}
+                <TranscriptionDisplay
+                  transcriptions={transcriptions}
+                  responses={responses}
+                  currentState={state.currentState}
+                  className="flex-1"
+                />
+
+                {/* Waveform Visualization */}
+                <div className="px-4 py-2 border-t border-border">
+                  <VoiceWaveform
+                    audioLevel={audioLevel}
+                    isActive={state.isCallActive && !state.isMuted}
+                    state={state.currentState}
+                    className="h-16"
+                  />
                 </div>
 
                 {/* Call Controls */}
                 <div className="p-6 border-t border-border">
-                  <div className="flex items-center justify-center gap-4">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="rounded-full w-12 h-12"
-                    >
-                      <Volume2 className="w-5 h-5" />
-                    </Button>
-                    <Button 
-                      onClick={toggleCall}
-                      size="icon" 
-                      className={`rounded-full w-14 h-14 ${
-                        isCallActive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"
-                      }`}
-                    >
-                      <Phone className="w-6 h-6" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="rounded-full w-12 h-12"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </Button>
-                  </div>
+                  <VoiceControls
+                    isCallActive={state.isCallActive}
+                    isMuted={state.isMuted}
+                    isSpeaking={state.currentState === "VOICE_STATE_SPEAKING"}
+                    isConnecting={isConnecting}
+                    onToggleCall={handleToggleCall}
+                    onToggleMute={toggleMute}
+                    onInterrupt={interrupt}
+                  />
                 </div>
               </div>
 
               {/* Voice Settings Panel */}
               <div className="border border-border rounded-2xl bg-background p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-2">Voice Settings</h2>
-                <p className="text-sm text-muted-foreground mb-6">Configure voice options</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings2 className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold text-foreground">Voice Settings</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">Configure voice options before starting a call</p>
 
                 <div className="space-y-6">
                   <div>
-                    <Label className="text-sm font-medium text-foreground">Voice Model</Label>
-                    <Select defaultValue="neural">
+                    <Label className="text-sm font-medium text-foreground">Voice</Label>
+                    <Select
+                      value={selectedVoice}
+                      onValueChange={setSelectedVoice}
+                      disabled={state.isCallActive}
+                    >
                       <SelectTrigger className="mt-2 rounded-xl border-border/50">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="neural">Neural (HD) Default</SelectItem>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="wavenet">WaveNet</SelectItem>
+                        {VOICE_OPTIONS.map((voice) => (
+                          <SelectItem key={voice.value} value={voice.value}>
+                            {voice.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
                     <Label className="text-sm font-medium text-foreground">Language</Label>
-                    <Select defaultValue="english">
+                    <Select
+                      value={selectedLanguage}
+                      onValueChange={setSelectedLanguage}
+                      disabled={state.isCallActive}
+                    >
                       <SelectTrigger className="mt-2 rounded-xl border-border/50">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="english">English</SelectItem>
-                        <SelectItem value="spanish">Spanish</SelectItem>
-                        <SelectItem value="french">French</SelectItem>
-                        <SelectItem value="german">German</SelectItem>
+                        {LANGUAGE_OPTIONS.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div>
-                    <Label className="text-sm font-medium text-foreground">Voice Speed</Label>
-                    <Slider
-                      value={voiceSpeed}
-                      onValueChange={setVoiceSpeed}
-                      max={100}
-                      step={1}
-                      className="mt-3"
-                    />
-                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                      <span>Slow</span>
-                      <span>Normal</span>
-                      <span>Fast</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium text-foreground">Voice Pitch</Label>
-                    <Slider
-                      value={voicePitch}
-                      onValueChange={setVoicePitch}
-                      max={100}
-                      step={1}
-                      className="mt-3"
-                    />
-                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                      <span>Low</span>
-                      <span>Default</span>
-                      <span>High</span>
+                  <div className="pt-4 border-t border-border">
+                    <h3 className="font-medium text-foreground mb-4">Session Info</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Status</span>
+                        <span className="font-medium text-foreground">
+                          {state.isCallActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Messages</span>
+                        <span className="font-medium text-foreground">
+                          {transcriptions.filter(t => t.isFinal).length + responses.length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Microphone</span>
+                        <span className={`font-medium ${state.isMuted ? "text-destructive" : "text-green-500"}`}>
+                          {state.isMuted ? "Muted" : "Active"}
+                        </span>
+                      </div>
+                      {state.sessionId && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Session ID</span>
+                          <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={state.sessionId}>
+                            {state.sessionId}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-border">
-                    <h3 className="font-medium text-foreground mb-4">Call Statistics</h3>
+                    <h3 className="font-medium text-foreground mb-4">Bot Details</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-sm text-primary">Total Calls</span>
-                        <span className="font-medium text-foreground">24</span>
+                        <span className="text-sm text-muted-foreground">Bot ID</span>
+                        <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={botId}>
+                          {botId || "Not selected"}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-primary">Avg Duration</span>
-                        <span className="font-medium text-foreground">3m 45s</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-primary">Success Rate</span>
-                        <span className="font-medium text-green-500">100%</span>
+                        <span className="text-sm text-muted-foreground">Tenant ID</span>
+                        <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={tenantId}>
+                          {tenantId || "Not set"}
+                        </span>
                       </div>
                     </div>
                   </div>

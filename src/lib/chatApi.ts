@@ -40,14 +40,14 @@ const generateFingerprint = (): string => {
 /**
  * Create a new anonymous chat session
  * @param tenantId - The tenant identifier
- * @param chatbotId - The chatbot/bot identifier
+ * @param botId - The chatbot/bot identifier
  * @param agentName - The agent name for chatbot config
  * @param welcomeMessage - The welcome message for chatbot config
  * @returns Session response with sessionToken
  */
 export const createChatServerSession = async (
   tenantId: string,
-  chatbotId: string,
+  botId: string,
   agentName: string = 'AI Assistant',
   welcomeMessage: string = 'Hello! How can I help you today?'
 ): Promise<ChatServerSessionResponse> => {
@@ -61,7 +61,7 @@ export const createChatServerSession = async (
       'X-Tenant-Id': tenantId,
     },
     body: JSON.stringify({
-      botId: chatbotId,
+      botId: botId,
       channelType: 'TEXT',
       fingerprint,
       metadata: {},
@@ -79,7 +79,7 @@ export const createChatServerSession = async (
 
   return {
     session_id: sessionData?.sessionToken || '',
-    chatbot_id: chatbotId,
+    chatbot_id: botId,
     tenant_id: tenantId,
     status: 'active',
     chatbot_config: {
@@ -168,7 +168,7 @@ export const submitLeadForm = async (
 /**
  * Send a message and receive streaming response via SSE
  * @param tenantId - Tenant identifier
- * @param chatbotId - Chatbot identifier
+ * @param botId - Chatbot identifier
  * @param sessionToken - Session token from createChatServerSession
  * @param message - User message text
  * @param onToken - Callback for each token received
@@ -177,7 +177,7 @@ export const submitLeadForm = async (
  */
 export const sendMessageWithStream = async (
   tenantId: string,
-  chatbotId: string,
+  botId: string,
   sessionToken: string,
   message: string,
   onToken: (token: string) => void,
@@ -189,10 +189,10 @@ export const sendMessageWithStream = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'accept': 'text/event-stream',
+        'Accept': 'text/event-stream',
         'X-Session-Token': sessionToken,
         'X-Tenant-Id': tenantId,
-        'X-Bot-Id': chatbotId,
+        'X-Bot-Id': botId,
       },
       body: JSON.stringify({
         query: message,
@@ -211,39 +211,61 @@ export const sendMessageWithStream = async (
       throw new Error('No response body');
     }
 
-    let currentEvent = '';
+    let buffer = '';
 
     // Read the stream
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
 
-      for (const line of lines) {
+      // Process complete SSE messages (separated by double newlines or single newlines)
+      const lines = buffer.split('\n');
+      buffer = ''; // Reset buffer, we'll add back incomplete lines
+
+      let currentEvent = 'token'; // Default event type
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Skip empty lines
+        if (!line) continue;
+
         // Parse SSE event type
-        if (line.startsWith('event: ')) {
-          currentEvent = line.slice(7).trim();
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+          continue;
         }
-        // Parse SSE data
-        else if (line.startsWith('data: ')) {
-          try {
-            const data = line.slice(6); // Remove "data: " prefix
-            const parsed = JSON.parse(data);
 
-            // Handle token event
-            if (currentEvent === 'token' && parsed.content) {
+        // Parse SSE data
+        if (line.startsWith('data:')) {
+          try {
+            const dataStr = line.slice(5).trim(); // Remove "data:" prefix
+
+            // Skip empty data
+            if (!dataStr) continue;
+
+            const parsed = JSON.parse(dataStr);
+            console.log('SSE parsed:', currentEvent, parsed);
+
+            // Handle token event - check for content field
+            if (parsed.content !== undefined) {
               onToken(parsed.content);
             }
 
-            // Handle done event
-            if (currentEvent === 'done') {
+            // Handle done event or completion indicators
+            if (currentEvent === 'done' || parsed.finish_reason || parsed.complete) {
               onComplete();
               return;
             }
-          } catch {
-            // Continue on parse error - might be partial JSON
+          } catch (e) {
+            // If JSON parse fails, it might be a partial message
+            // Add it back to buffer if it's the last line
+            if (i === lines.length - 1) {
+              buffer = line;
+            }
+            console.log('SSE parse error:', e, 'line:', line);
           }
         }
       }

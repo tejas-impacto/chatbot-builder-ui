@@ -20,7 +20,15 @@ import ManageChatbot from "./pages/ManageChatbot";
 import ManageVoicebot from "./pages/ManageVoicebot";
 import BotsAvailable from "./pages/BotsAvailable";
 import ChatbotEndpoints from "./pages/ChatbotEndpoints";
+import ChatbotDocuments from "./pages/ChatbotDocuments";
+import VoicebotDocuments from "./pages/VoicebotDocuments";
+import ManageAgents from "./pages/ManageAgents";
+import BotDetails from "./pages/BotDetails";
+import BotEdit from "./pages/BotEdit";
+import UnresolvedQueries from "./pages/UnresolvedQueries";
 import CRM from "./pages/CRM";
+import Leads from "./pages/Leads";
+import KnowledgeGraph from "./pages/KnowledgeGraph";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,16 +57,27 @@ const App = () => {
           <Route path="/bot-creation-progress" element={<BotCreationProgress />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/manage-agents" element={<ManageAgents />} />
           <Route path="/business-data" element={<BusinessDataManagement />} />
           <Route path="/business-data/overview" element={<BusinessDataOverview />} />
           <Route path="/manage-chatbot" element={<ManageChatbot />} />
           <Route path="/manage-chatbot/bots" element={<BotsAvailable />} />
           <Route path="/manage-chatbot/endpoints" element={<ChatbotEndpoints />} />
+          <Route path="/manage-chatbot/documents" element={<ChatbotDocuments />} />
+          <Route path="/manage-chatbot/bot/:botId" element={<BotDetails />} />
+          <Route path="/manage-chatbot/bot/:botId/edit" element={<BotEdit />} />
+          <Route path="/unresolved-queries/:botId" element={<UnresolvedQueries />} />
           <Route path="/manage-chatbot/*" element={<ManageChatbot />} />
           <Route path="/manage-voicebot" element={<ManageVoicebot />} />
+          <Route path="/manage-voicebot/bots" element={<BotsAvailable />} />
           <Route path="/manage-voicebot/endpoints" element={<ChatbotEndpoints />} />
+          <Route path="/manage-voicebot/documents" element={<VoicebotDocuments />} />
+          <Route path="/manage-voicebot/bot/:botId" element={<BotDetails />} />
+          <Route path="/manage-voicebot/bot/:botId/edit" element={<BotEdit />} />
           <Route path="/manage-voicebot/*" element={<ManageVoicebot />} />
           <Route path="/crm" element={<CRM />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/knowledge-graph" element={<KnowledgeGraph />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

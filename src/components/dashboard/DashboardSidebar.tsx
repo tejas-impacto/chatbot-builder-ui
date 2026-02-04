@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "@/lib/auth";
-import { 
-  LayoutDashboard, 
-  Database, 
-  Bot, 
-  Mic, 
-  Users, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Database,
+  Bot,
+  Mic,
+  Users,
+  UserCheck,
+  Settings,
   LogOut,
   ChevronDown,
   ChevronUp,
-  Search
+  Search,
+  Network
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,29 +58,27 @@ const menuItems: MenuItem[] = [
       { title: "Document Management", url: "/business-data" },
     ]
   },
-  { 
-    title: "Manage Chat bot", 
-    url: "/manage-chatbot", 
+  {
+    title: "Manage Chat bot",
+    url: "/manage-chatbot",
     icon: Bot,
     subItems: [
       { title: "Bots Available", url: "/manage-chatbot/bots" },
-      { title: "End Points", url: "/manage-chatbot/endpoints" },
       { title: "Demo Chat Interface", url: "/manage-chatbot" },
-      { title: "Chat History", url: "/manage-chatbot/history" },
     ]
   },
-  { 
-    title: "Manage Voice bot", 
-    url: "/manage-voicebot", 
+  {
+    title: "Manage Voice bot",
+    url: "/manage-voicebot",
     icon: Mic,
     subItems: [
       { title: "Bots Available", url: "/manage-voicebot/bots" },
-      { title: "End Points", url: "/manage-voicebot/endpoints" },
       { title: "Demo Voice Interface", url: "/manage-voicebot" },
-      { title: "Chat History", url: "/manage-voicebot/history" },
     ]
   },
   { title: "CRM", url: "/crm", icon: Users },
+  { title: "Leads", url: "/leads", icon: UserCheck },
+  { title: "Knowledge Graph", url: "/knowledge-graph", icon: Network },
 ];
 
 const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: DashboardSidebarProps) => {
@@ -125,7 +125,7 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
           )}
         </div>
 
-        {/* Create Chat Bot Button */}
+        {/* Create Bot Button */}
         {!collapsed && (
           <Button
             variant="outline"
@@ -140,7 +140,7 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
               }
             }}
           >
-            + Create Chat Bot
+            + Create Bot
           </Button>
         )}
 

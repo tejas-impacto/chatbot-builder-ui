@@ -1,10 +1,11 @@
-// Token refresh interval (25 minutes in milliseconds)
-const REFRESH_INTERVAL = 25 * 60 * 1000;
-
 // Buffer time before expiry to refresh (2 minutes in milliseconds)
 const REFRESH_BUFFER = 2 * 60 * 1000;
 
+// Minimum refresh interval (1 minute) to prevent too frequent refreshes
+const MIN_REFRESH_INTERVAL = 60 * 1000;
+
 let refreshTimer: NodeJS.Timeout | null = null;
+let visibilityListenerAdded = false;
 
 export const refreshAccessToken = async (): Promise<boolean> => {
   try {
@@ -15,13 +16,12 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       return false;
     }
 
-    const response = await fetch('/api/v1/auth/refresh', {
+    const response = await fetch('/api/v1/auth/refresh-token', {
       method: 'POST',
       headers: {
         'accept': '*/*',
-        'Content-Type': 'application/json',
+        'Refresh-Token': `Bearer ${refreshToken}`,
       },
-      body: JSON.stringify({ refreshToken }),
     });
 
     const data = await response.json();
@@ -32,11 +32,33 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     }
 
     // Update tokens in localStorage
-    const { accessToken, refreshToken: newRefreshToken, accessExpiresIn, refreshExpiresIn } = data.responseStructure.data;
+    const {
+      accessToken,
+      refreshToken: newRefreshToken,
+      accessExpiresIn,
+      refreshExpiresIn,
+      onboardingCompleted,
+      documentUploaded,
+      tenantId,
+    } = data.responseStructure.data;
+
     localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', newRefreshToken);
+    if (newRefreshToken) {
+      localStorage.setItem('refreshToken', newRefreshToken);
+    }
     localStorage.setItem('accessExpiresIn', String(accessExpiresIn));
     localStorage.setItem('refreshExpiresIn', String(refreshExpiresIn));
+
+    // Update onboarding and tenant info if provided
+    if (onboardingCompleted !== undefined) {
+      localStorage.setItem('isOnboarded', String(onboardingCompleted));
+    }
+    if (documentUploaded !== undefined) {
+      localStorage.setItem('documentUploaded', String(documentUploaded));
+    }
+    if (tenantId) {
+      localStorage.setItem('tenantId', tenantId);
+    }
 
     // Store token creation time for expiry calculation
     localStorage.setItem('tokenCreatedAt', String(Date.now()));
@@ -67,6 +89,14 @@ export const isTokenExpired = (): boolean => {
   return Date.now() >= (expiryTime - REFRESH_BUFFER);
 };
 
+// Custom error for session expiration
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('SESSION_EXPIRED');
+    this.name = 'SessionExpiredError';
+  }
+}
+
 // Get valid access token - refreshes if expired
 export const getValidAccessToken = async (): Promise<string | null> => {
   const accessToken = localStorage.getItem('accessToken');
@@ -81,9 +111,10 @@ export const getValidAccessToken = async (): Promise<string | null> => {
     const refreshed = await refreshAccessToken();
 
     if (!refreshed) {
-      // Refresh failed, user needs to login again
-      logout();
-      return null;
+      // Refresh failed - throw error instead of auto-logout
+      // Let the calling component decide how to handle it
+      console.warn('Token refresh failed - session may have expired');
+      throw new SessionExpiredError();
     }
 
     // Return the new token
@@ -91,6 +122,45 @@ export const getValidAccessToken = async (): Promise<string | null> => {
   }
 
   return accessToken;
+};
+
+// Calculate dynamic refresh interval based on token expiry
+const getRefreshInterval = (): number => {
+  const accessExpiresIn = localStorage.getItem('accessExpiresIn');
+
+  if (!accessExpiresIn) {
+    // Default to 5 minutes if no expiry info
+    return 5 * 60 * 1000;
+  }
+
+  const expiresInMs = parseInt(accessExpiresIn) * 1000; // Convert seconds to ms
+  // Refresh at 80% of the token lifetime, but at least MIN_REFRESH_INTERVAL
+  const refreshInterval = Math.max(expiresInMs * 0.8 - REFRESH_BUFFER, MIN_REFRESH_INTERVAL);
+
+  return refreshInterval;
+};
+
+// Handle visibility change - refresh token when tab becomes visible
+const handleVisibilityChange = async () => {
+  if (document.visibilityState === 'visible') {
+    const accessToken = localStorage.getItem('accessToken');
+    if (!accessToken) {
+      return;
+    }
+
+    // Check if token is expired or about to expire
+    if (isTokenExpired()) {
+      console.log('Tab became visible, token expired - refreshing...');
+      const success = await refreshAccessToken();
+      if (!success) {
+        // Don't auto-logout - let the next API call handle it
+        console.warn('Background token refresh failed on visibility change');
+      } else {
+        // Restart the timer with fresh interval
+        startTokenRefreshTimer();
+      }
+    }
+  }
 };
 
 export const startTokenRefreshTimer = () => {
@@ -103,16 +173,26 @@ export const startTokenRefreshTimer = () => {
     return;
   }
 
-  // Set up automatic refresh every 25 minutes
+  // Calculate dynamic refresh interval based on token expiry
+  const refreshInterval = getRefreshInterval();
+
+  // Set up automatic refresh
   refreshTimer = setInterval(async () => {
     const success = await refreshAccessToken();
     if (!success) {
-      // If refresh fails, redirect to login
-      logout();
+      // Don't auto-logout - let the next API call handle it gracefully
+      console.warn('Background token refresh failed - user may need to re-login on next action');
     }
-  }, REFRESH_INTERVAL);
+  }, refreshInterval);
 
-  console.log('Token refresh timer started (25 min interval)');
+  // Add visibility change listener (only once)
+  if (!visibilityListenerAdded) {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    visibilityListenerAdded = true;
+    console.log('Visibility change listener added');
+  }
+
+  console.log(`Token refresh timer started (${Math.round(refreshInterval / 1000 / 60)} min interval)`);
 };
 
 export const stopTokenRefreshTimer = () => {
@@ -120,6 +200,13 @@ export const stopTokenRefreshTimer = () => {
     clearInterval(refreshTimer);
     refreshTimer = null;
     console.log('Token refresh timer stopped');
+  }
+
+  // Remove visibility listener
+  if (visibilityListenerAdded) {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    visibilityListenerAdded = false;
+    console.log('Visibility change listener removed');
   }
 };
 

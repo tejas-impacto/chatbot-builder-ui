@@ -9,7 +9,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 
 interface LocationState {
-  chatbotId?: string;
+  botId?: string;
   chatbotName?: string;
   tenantId?: string;
 }
@@ -22,7 +22,7 @@ const ChatbotEndpoints = () => {
   const { toast } = useToast();
   const state = (location.state as LocationState) || {};
 
-  const chatbotId = state.chatbotId || localStorage.getItem('chatbotId') || "demo-chatbot";
+  const botId = state.botId || localStorage.getItem('botId') || "demo-chatbot";
   const chatbotName = state.chatbotName || "AI Agent";
   const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
 
@@ -51,9 +51,9 @@ const ChatbotEndpoints = () => {
       key: "leadForm",
       title: "Lead Form API",
       method: "POST",
-      url: `${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/lead-form`,
+      url: `${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/lead-form`,
       description: "Submit user information before starting a chat session",
-      curl: `curl -X POST '${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/lead-form' \\
+      curl: `curl -X POST '${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/lead-form' \\
   -H 'Content-Type: application/json' \\
   -d '{
     "session_id": "your_session_id",
@@ -69,9 +69,9 @@ const ChatbotEndpoints = () => {
       key: "message",
       title: "Message API (SSE Streaming)",
       method: "POST",
-      url: `${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/message`,
+      url: `${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/message`,
       description: "Send a message and receive streaming response",
-      curl: `curl -X POST '${CHAT_SERVER_URL}/chat/${tenantId}/${chatbotId}/message' \\
+      curl: `curl -X POST '${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/message' \\
   -H 'Content-Type: application/json' \\
   -d '{
     "message": "Hello, how can you help me?",
@@ -88,7 +88,7 @@ const ChatbotEndpoints = () => {
   -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \\
   -H 'Content-Type: application/json' \\
   -d '{
-    "chatbotId": "${chatbotId}",
+    "botId": "${botId}",
     "channelType": "TEXT",
     "metadata": {}
   }'`,
@@ -100,7 +100,7 @@ const ChatbotEndpoints = () => {
   (function() {
     var script = document.createElement('script');
     script.src = '${window.location.origin}/widget.js';
-    script.setAttribute('data-chatbot-id', '${chatbotId}');
+    script.setAttribute('data-chatbot-id', '${botId}');
     script.setAttribute('data-tenant-id', '${tenantId}');
     document.body.appendChild(script);
   })();
@@ -148,12 +148,12 @@ const ChatbotEndpoints = () => {
                   <div className="p-4 bg-muted/50 rounded-lg">
                     <p className="text-sm text-muted-foreground mb-1">Chatbot ID</p>
                     <div className="flex items-center justify-between">
-                      <code className="text-sm font-mono text-foreground">{chatbotId}</code>
+                      <code className="text-sm font-mono text-foreground">{botId}</code>
                       <button
-                        onClick={() => handleCopy(chatbotId, "chatbotId")}
+                        onClick={() => handleCopy(botId, "botId")}
                         className="p-1.5 hover:bg-muted rounded"
                       >
-                        {copiedField === "chatbotId" ? (
+                        {copiedField === "botId" ? (
                           <Check className="w-4 h-4 text-green-500" />
                         ) : (
                           <Copy className="w-4 h-4 text-muted-foreground" />

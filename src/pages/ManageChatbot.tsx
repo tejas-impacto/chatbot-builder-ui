@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { RefreshCw, Bot, Send, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { RefreshCw, Bot, Send, Loader2, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,7 +11,18 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import LeadFormModal from "@/components/chat/LeadFormModal";
 import { createChatServerSession, submitLeadForm, sendMessageWithStream } from "@/lib/chatApi";
 import { useToast } from "@/hooks/use-toast";
+import { getValidAccessToken } from "@/lib/auth";
 import type { UserInfo } from "@/types/chat";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Message {
   id: string;
@@ -22,7 +34,7 @@ interface Message {
 
 interface LocationState {
   sessionToken?: string;
-  chatbotId?: string;
+  botId?: string;
   chatbotName?: string;
   tenantId?: string;
   showLeadForm?: boolean;
@@ -31,6 +43,7 @@ interface LocationState {
 
 const ManageChatbot = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const state = (location.state as LocationState) || {};
 
@@ -40,10 +53,20 @@ const ManageChatbot = () => {
   const [isLeadFormSubmitting, setIsLeadFormSubmitting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(state.sessionToken || null);
-  const [chatbotId] = useState<string>(state.chatbotId || "demo-chatbot");
+  const [botId] = useState<string>(state.botId || "demo-chatbot");
   const [chatbotName] = useState<string>(state.chatbotName || "AI Assistant");
   const [tenantId] = useState<string>(state.tenantId || localStorage.getItem('tenantId') || "");
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(state.demoMode || !state.chatbotId);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(state.demoMode || !state.botId);
+  const [showEndSessionDialog, setShowEndSessionDialog] = useState(false);
+  const [isEndingSession, setIsEndingSession] = useState(false);
+
+  // Ref for auto-scrolling to bottom
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // Initialize with welcome message
   useEffect(() => {
@@ -61,11 +84,11 @@ const ManageChatbot = () => {
 
     try {
       // Step 1: Create a chat session via Chat Server (for non-demo mode)
-      if (chatbotId && chatbotId !== "demo-chatbot" && tenantId) {
+      if (botId && botId !== "demo-chatbot" && tenantId) {
         console.log("Creating chat session via Chat Server");
         const sessionResponse = await createChatServerSession(
           tenantId,
-          chatbotId,
+          botId,
           chatbotName,
           `Hello! I'm ${chatbotName}. How can I help you today?`
         );
@@ -77,7 +100,7 @@ const ManageChatbot = () => {
         setIsDemoMode(false);
 
         // Step 2: Submit lead form via Main API
-        await submitLeadForm(tenantId, chatbotId, newSessionId, userInfo);
+        await submitLeadForm(tenantId, botId, newSessionId, userInfo);
         console.log("Lead form submitted successfully");
 
         toast({
@@ -131,12 +154,12 @@ const ManageChatbot = () => {
     setMessages(prev => [...prev, botMessage]);
     setIsStreaming(true);
 
-    if (!isDemoMode && sessionId && tenantId && chatbotId) {
+    if (!isDemoMode && sessionId && tenantId && botId) {
       // Use real API with streaming
       try {
         await sendMessageWithStream(
           tenantId,
-          chatbotId,
+          botId,
           sessionId,
           userMessage.text,
           // onToken
@@ -205,6 +228,50 @@ const ManageChatbot = () => {
     }
   };
 
+  const handleEndSession = async () => {
+    if (!sessionId || isDemoMode) {
+      // Demo mode - just navigate back
+      navigate(-1);
+      return;
+    }
+
+    setIsEndingSession(true);
+    try {
+      const accessToken = await getValidAccessToken();
+
+      const response = await fetch('/api/v1/chat/sessions', {
+        method: 'DELETE',
+        headers: {
+          'accept': '*/*',
+          'X-Session-Token': sessionId,
+          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to end session');
+      }
+
+      toast({
+        title: "Session Ended",
+        description: "Chat session has been ended successfully.",
+      });
+
+      // Navigate back to bots list
+      navigate('/manage-chatbot/bots');
+    } catch (error) {
+      console.error('Error ending session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to end session. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEndingSession(false);
+      setShowEndSessionDialog(false);
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
@@ -249,14 +316,25 @@ const ManageChatbot = () => {
 
               {/* Chat Header */}
               <div className="p-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-primary" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">{chatbotName}</h3>
+                      <p className="text-sm text-green-500">Online</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">{chatbotName}</h3>
-                    <p className="text-sm text-green-500">Online</p>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowEndSessionDialog(true)}
+                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    title="End chat session"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -280,14 +358,38 @@ const ManageChatbot = () => {
                             : "bg-muted"
                         }`}
                       >
-                        <p className="text-sm">
-                          {message.text || (message.isStreaming && (
-                            <span className="flex items-center gap-2">
+                        {message.text ? (
+                          message.sender === "bot" ? (
+                            <div className="text-sm">
+                              <ReactMarkdown
+                                components={{
+                                  p: ({ children }) => <p className="my-1">{children}</p>,
+                                  ul: ({ children }) => <ul className="list-disc pl-4 my-2 space-y-1">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal pl-4 my-2 space-y-1">{children}</ol>,
+                                  li: ({ children }) => <li className="ml-1">{children}</li>,
+                                  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                                  em: ({ children }) => <em className="italic">{children}</em>,
+                                  h1: ({ children }) => <h1 className="text-lg font-bold my-2">{children}</h1>,
+                                  h2: ({ children }) => <h2 className="text-base font-bold my-2">{children}</h2>,
+                                  h3: ({ children }) => <h3 className="text-sm font-bold my-1">{children}</h3>,
+                                  code: ({ children }) => <code className="bg-muted-foreground/20 px-1 rounded text-xs">{children}</code>,
+                                  a: ({ href, children }) => <a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                }}
+                              >
+                                {message.text}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{message.text}</p>
+                          )
+                        ) : (
+                          message.isStreaming && (
+                            <span className="flex items-center gap-2 text-sm">
                               <Loader2 className="w-4 h-4 animate-spin" />
                               Typing...
                             </span>
-                          ))}
-                        </p>
+                          )
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{message.time}</p>
                     </div>
@@ -299,6 +401,8 @@ const ManageChatbot = () => {
                     )}
                   </div>
                 ))}
+                {/* Scroll target */}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}
@@ -330,6 +434,35 @@ const ManageChatbot = () => {
           </div>
         </main>
       </div>
+
+      {/* End Session Confirmation Dialog */}
+      <AlertDialog open={showEndSessionDialog} onOpenChange={setShowEndSessionDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End Chat Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to end this chat session? This will close the current conversation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEndSession}
+              disabled={isEndingSession}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isEndingSession ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Ending...
+                </>
+              ) : (
+                "End Session"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 };

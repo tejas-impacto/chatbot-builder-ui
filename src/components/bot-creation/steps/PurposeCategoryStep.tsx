@@ -5,6 +5,7 @@ import { Headphones, HelpCircle, Megaphone, Star } from "lucide-react";
 interface PurposeCategoryStepProps {
   data: BotCreationData;
   onChange: (data: Partial<BotCreationData>) => void;
+  errors?: Record<string, string>;
 }
 
 const purposeOptions = [
@@ -38,14 +39,14 @@ const purposeOptions = [
   },
 ];
 
-const PurposeCategoryStep = ({ data, onChange }: PurposeCategoryStepProps) => {
+const PurposeCategoryStep = ({ data, onChange, errors }: PurposeCategoryStepProps) => {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
         <Label className="text-sm font-medium text-foreground">
-          Select Purpose
+          Select Purpose <span className="text-destructive">*</span>
         </Label>
-        <div className="grid grid-cols-4 gap-4">
+        <div className={`grid grid-cols-4 gap-4 ${errors?.purpose ? 'rounded-xl ring-1 ring-destructive p-1' : ''}`}>
           {purposeOptions.map((option) => {
             const Icon = option.icon;
             return (
@@ -71,6 +72,9 @@ const PurposeCategoryStep = ({ data, onChange }: PurposeCategoryStepProps) => {
             );
           })}
         </div>
+        {errors?.purpose && (
+          <p className="text-sm text-destructive">{errors.purpose}</p>
+        )}
       </div>
     </div>
   );

@@ -12,10 +12,10 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
     <div className="space-y-6">
       <div className="space-y-2">
         <Label className="text-sm font-medium text-foreground">
-          Company Overview
+          Bot Overview
         </Label>
         <Textarea
-          placeholder="Enter Company Overview"
+          placeholder="Enter Bot Overview"
           value={data.companyOverview}
           onChange={(e) => onChange({ companyOverview: e.target.value })}
           className="min-h-[100px] rounded-xl border-input focus:ring-2 focus:ring-primary/20"

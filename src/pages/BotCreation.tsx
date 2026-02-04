@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MessageSquare, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Loader2, Bot, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getValidAccessToken } from "@/lib/auth";
+import { getValidAccessToken, SessionExpiredError, logout } from "@/lib/auth";
 import { createBot, initBotCreationSession, CreateBotRequest } from "@/lib/botApi";
 
 import KnowledgeBaseStep from "@/components/bot-creation/steps/KnowledgeBaseStep";
@@ -19,30 +19,35 @@ const capitalize = (str: string): string => {
 };
 
 export interface BotCreationData {
+  // Bot Type Selection
+  botType: "chat" | "voice";
+
   // Step 1: Knowledge Base
   companyOverview: string;
   productFeatures: string;
   commonFaqs: string;
-  
+
   // Step 2: Conversation Style
   chatResponseLength: string;
   chatGuidelines: string;
   voiceResponseLength: string;
   voiceGuidelines: string;
-  
+  voiceSpeed: string;
+
   // Step 3: Purpose Category
   purpose: string;
-  
+
   // Step 4: Persona & Voice
   persona: string;
   voiceTone: string;
   agentName: string;
-  
+
   // Step 5: Upload Documents
   files: File[];
 }
 
 const initialData: BotCreationData = {
+  botType: "chat",
   companyOverview: "",
   productFeatures: "",
   commonFaqs: "",
@@ -50,6 +55,7 @@ const initialData: BotCreationData = {
   chatGuidelines: "",
   voiceResponseLength: "medium",
   voiceGuidelines: "",
+  voiceSpeed: "normal",
   purpose: "",
   persona: "",
   voiceTone: "friendly",
@@ -68,17 +74,66 @@ const steps = [
 
 const BotCreation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<BotCreationData>(initialData);
   const [isCreating, setIsCreating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
+
+  // Check if voice bot should be pre-enabled from navigation state
+  useEffect(() => {
+    const state = location.state as { voiceEnabled?: boolean } | null;
+    if (state?.voiceEnabled) {
+      setFormData(prev => ({ ...prev, botType: "voice" }));
+    }
+  }, [location.state]);
 
   const updateFormData = (data: Partial<BotCreationData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
+    // Clear errors for fields being updated
+    if (Object.keys(stepErrors).length > 0) {
+      const updatedErrors = { ...stepErrors };
+      Object.keys(data).forEach(key => {
+        delete updatedErrors[key];
+      });
+      setStepErrors(updatedErrors);
+    }
+  };
+
+  // Validate current step before proceeding
+  const validateStep = (step: number): { isValid: boolean; errors: Record<string, string> } => {
+    const errors: Record<string, string> = {};
+
+    switch (step) {
+      case 3: // Purpose Category
+        if (!formData.purpose) {
+          errors.purpose = 'Please select a purpose category';
+        }
+        break;
+      case 4: // Persona & Voice
+        if (!formData.agentName?.trim()) {
+          errors.agentName = 'Agent name is required';
+        }
+        if (!formData.persona) {
+          errors.persona = 'Please select a persona';
+        }
+        break;
+    }
+
+    return { isValid: Object.keys(errors).length === 0, errors };
   };
 
   const handleNext = () => {
+    // Validate current step before proceeding
+    const { isValid, errors } = validateStep(currentStep);
+    if (!isValid) {
+      setStepErrors(errors);
+      return;
+    }
+    setStepErrors({});
+
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -93,7 +148,7 @@ const BotCreation = () => {
   };
 
   // Upload documents using multipart/form-data
-  const uploadDocuments = async (files: File[], tenantId: string, chatbotId: string, accessToken: string): Promise<{ success: boolean; error?: string }> => {
+  const uploadDocuments = async (files: File[], tenantId: string, botId: string, accessToken: string, botType: "chat" | "voice"): Promise<{ success: boolean; error?: string }> => {
     try {
       const formData = new FormData();
 
@@ -104,9 +159,9 @@ const BotCreation = () => {
 
       // Add other fields
       formData.append('tenantId', tenantId);
-      formData.append('documentType', 'CHATBOT');
-      formData.append('botId', chatbotId);
-      formData.append('description', 'Chatbot knowledge base documents');
+      formData.append('documentType', 'CHATBOT'); // All bot documents use CHATBOT type, filtered by botId
+      formData.append('botId', botId);
+      formData.append('description', botType === 'voice' ? 'Voicebot knowledge base documents' : 'Chatbot knowledge base documents');
 
       const response = await fetch(
         `/api-doc/v1/documents/upload/multiple`,
@@ -163,7 +218,7 @@ const BotCreation = () => {
           voiceLength: formData.voiceResponseLength || 'medium',
           voiceGuidelines: formData.voiceGuidelines || '',
         },
-        channelType: 'TEXT',
+        channelType: formData.botType === 'voice' ? 'VOICE' : 'TEXT',
         purposeCategory: formData.purpose || '',
         persona: formData.persona || '',
         agentName: formData.agentName || 'My Chatbot',
@@ -174,11 +229,11 @@ const BotCreation = () => {
       const botId = createBotResponse.responseStructure.data.bot_id;
       console.log("Bot created with ID:", botId);
 
-      // Step 2: Upload Documents (with chatbotId)
+      // Step 2: Upload Documents (with botId)
       if (formData.files.length > 0) {
         setUploadProgress(`Uploading ${formData.files.length} document(s)...`);
 
-        const result = await uploadDocuments(formData.files, tenantId, botId, accessToken);
+        const result = await uploadDocuments(formData.files, tenantId, botId, accessToken, formData.botType);
 
         if (result.success) {
           toast({
@@ -230,6 +285,16 @@ const BotCreation = () => {
         },
       });
     } catch (error) {
+      // Handle session expiration gracefully
+      if (error instanceof SessionExpiredError) {
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        });
+        logout();
+        return;
+      }
       console.error("Failed to create bot:", error);
       toast({
         title: "Error",
@@ -247,11 +312,11 @@ const BotCreation = () => {
       case 1:
         return <KnowledgeBaseStep data={formData} onChange={updateFormData} />;
       case 2:
-        return <ConversationStyleStep data={formData} onChange={updateFormData} />;
+        return <ConversationStyleStep data={formData} onChange={updateFormData} botType={formData.botType} />;
       case 3:
-        return <PurposeCategoryStep data={formData} onChange={updateFormData} />;
+        return <PurposeCategoryStep data={formData} onChange={updateFormData} errors={stepErrors} />;
       case 4:
-        return <PersonaVoiceStep data={formData} onChange={updateFormData} />;
+        return <PersonaVoiceStep data={formData} onChange={updateFormData} errors={stepErrors} />;
       case 5:
         return <UploadDocumentsStep data={formData} onChange={updateFormData} />;
       default:
@@ -329,6 +394,76 @@ const BotCreation = () => {
               {steps[currentStep - 1].description}
             </p>
           </div>
+
+          {/* Bot Type Selection - Show on Step 1 */}
+          {currentStep === 1 && (
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-foreground mb-3">
+                Select Bot Type
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => updateFormData({ botType: "chat" })}
+                  className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                    formData.botType === "chat"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-input hover:border-primary/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      formData.botType === "chat" ? "bg-primary/20" : "bg-muted"
+                    }`}>
+                      <Bot className={`w-5 h-5 ${
+                        formData.botType === "chat" ? "text-primary" : "text-muted-foreground"
+                      }`} />
+                    </div>
+                    <span className={`font-semibold ${
+                      formData.botType === "chat" ? "text-primary" : "text-foreground"
+                    }`}>
+                      Chat Bot
+                    </span>
+                  </div>
+                  <p className={`text-xs ${
+                    formData.botType === "chat" ? "text-primary/80" : "text-muted-foreground"
+                  }`}>
+                    Text-based conversations for customer support and engagement
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateFormData({ botType: "voice" })}
+                  className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                    formData.botType === "voice"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-input hover:border-primary/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      formData.botType === "voice" ? "bg-primary/20" : "bg-muted"
+                    }`}>
+                      <Mic className={`w-5 h-5 ${
+                        formData.botType === "voice" ? "text-primary" : "text-muted-foreground"
+                      }`} />
+                    </div>
+                    <span className={`font-semibold ${
+                      formData.botType === "voice" ? "text-primary" : "text-foreground"
+                    }`}>
+                      Voice Bot
+                    </span>
+                  </div>
+                  <p className={`text-xs ${
+                    formData.botType === "voice" ? "text-primary/80" : "text-muted-foreground"
+                  }`}>
+                    Voice-enabled assistant for phone support and voice interactions
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Step Content */}
           <div className="mb-8">

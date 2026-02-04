@@ -11,7 +11,8 @@ import {
   MoreVertical,
   Zap,
   AlertCircle,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +20,14 @@ import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { getDashboardMetrics, type DashboardMetrics } from "@/lib/botApi";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [showOnboardingPopup, setShowOnboardingPopup] = useState(false);
   const [requiresOnboarding, setRequiresOnboarding] = useState(false);
+  const [metricsData, setMetricsData] = useState<DashboardMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
 
   useEffect(() => {
     // Check if onboarding was skipped and not completed
@@ -36,6 +40,32 @@ const Dashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const tenantId = localStorage.getItem('tenantId');
+        console.log('Fetching dashboard metrics for tenantId:', tenantId);
+        if (!tenantId) {
+          setMetricsLoading(false);
+          return;
+        }
+
+        const response = await getDashboardMetrics(tenantId);
+        console.log('Dashboard metrics response:', response);
+        if (response.responseStructure?.data) {
+          console.log('Setting metrics data:', response.responseStructure.data);
+          setMetricsData(response.responseStructure.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard metrics:', error);
+      } finally {
+        setMetricsLoading(false);
+      }
+    };
+
+    fetchMetrics();
+  }, []);
+
   // Handler to show popup when user tries to perform a blocked action
   const handleBlockedAction = () => {
     if (requiresOnboarding) {
@@ -44,10 +74,34 @@ const Dashboard = () => {
   };
 
   const metrics = [
-    { title: "Active Chatbots", value: "12", icon: Bot, trend: "+3 this week", color: "bg-primary/10 text-primary" },
-    { title: "Active Voice Bots", value: "5", icon: Mic, trend: "+1 this week", color: "bg-accent/10 text-accent" },
-    { title: "Total Conversations", value: "2,847", icon: MessageSquare, trend: "+12% vs last month", color: "bg-blue-500/10 text-blue-500" },
-    { title: "Response Rate", value: "98.5%", icon: TrendingUp, trend: "+2.3%", color: "bg-green-500/10 text-green-500" },
+    {
+      title: "Active Chatbots",
+      value: metricsLoading ? "-" : String(metricsData?.bots?.textBots ?? 0),
+      icon: Bot,
+      trend: `${metricsData?.bots?.totalActive ?? 0} total active`,
+      color: "bg-primary/10 text-primary"
+    },
+    {
+      title: "Active Voice Bots",
+      value: metricsLoading ? "-" : String(metricsData?.bots?.voiceBots ?? 0),
+      icon: Mic,
+      trend: "Voice assistants",
+      color: "bg-accent/10 text-accent"
+    },
+    {
+      title: "Total Sessions",
+      value: metricsLoading ? "-" : String(metricsData?.sessions?.total ?? 0),
+      icon: MessageSquare,
+      trend: `${metricsData?.sessions?.textSessions ?? 0} text, ${metricsData?.sessions?.voiceSessions ?? 0} voice`,
+      color: "bg-blue-500/10 text-blue-500"
+    },
+    {
+      title: "Text Sessions",
+      value: metricsLoading ? "-" : String(metricsData?.sessions?.textSessions ?? 0),
+      icon: TrendingUp,
+      trend: "Chat conversations",
+      color: "bg-green-500/10 text-green-500"
+    },
   ];
 
   const quickActions = [
@@ -179,8 +233,12 @@ const Dashboard = () => {
                         // Handle navigation based on action
                         if (action.title === "Create Chat Bot") {
                           navigate("/bot-creation");
+                        } else if (action.title === "Create Voice Bot") {
+                          navigate("/bot-creation", { state: { voiceEnabled: true } });
                         } else if (action.title === "Upload Data") {
                           navigate("/business-data");
+                        } else if (action.title === "Manage Agents") {
+                          navigate("/manage-agents");
                         }
                       }
                     }}

@@ -1,6 +1,6 @@
 // Session types
 export interface CreateSessionRequest {
-  chatbotId: string;
+  botId: string;
   channelType: 'TEXT' | 'VOICE';
   metadata?: Record<string, string>;
 }
@@ -14,7 +14,7 @@ export interface CreateSessionResponse {
       sessionToken: string;
       expiresAt: string;
       channelType: string;
-      chatbotId: string;
+      botId: string;
       chatbotName: string;
     };
   };
@@ -23,7 +23,7 @@ export interface CreateSessionResponse {
 export interface SessionInfo {
   status: 'PENDING' | 'ACTIVE' | 'CLOSED';
   channelType: string;
-  chatbotId: string;
+  botId: string;
   createdAt: string;
   lastActivityAt: string;
   expiresAt: string;

@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from "react";
-import { Upload, Search, FileText, Eye, Trash2, Loader2 } from "lucide-react";
+import { Upload, Search, FileText, Eye, Trash2, Loader2, RefreshCw, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken } from "@/lib/auth";
+import { getBotsByTenant, type Bot as BotType } from "@/lib/botApi";
 
 interface UploadedFile {
   id: string;
@@ -29,6 +37,7 @@ interface ApiDocument {
   size: number;
   metadata: Record<string, unknown>;
   downloadUrl: string;
+  createdAt?: string;
 }
 
 // Helper to get file extension from mimeType or filename
@@ -74,38 +83,98 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const BusinessDataManagement = () => {
+// Helper to format date
+const formatDate = (dateString?: string): string => {
+  if (!dateString) return 'Recently uploaded';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  } catch {
+    return 'Recently uploaded';
+  }
+};
+
+const ChatbotDocuments = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [documents, setDocuments] = useState<UploadedFile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bots, setBots] = useState<BotType[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string>("");
+  const [loadingBots, setLoadingBots] = useState(true);
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch bots on mount
   useEffect(() => {
-    const fetchDocuments = async () => {
+    const fetchBots = async () => {
       const tenantId = localStorage.getItem('tenantId');
 
       if (!tenantId) {
-        setLoading(false);
+        setLoadingBots(false);
         setError('No tenant ID found');
         return;
       }
 
       try {
+        const response = await getBotsByTenant(tenantId);
+        const botsList = response.responseStructure?.data || [];
+        setBots(botsList);
+
+        // Auto-select first bot if available
+        if (botsList.length > 0) {
+          setSelectedBotId(botsList[0].botId);
+        }
+      } catch (err) {
+        console.error('Error fetching bots:', err);
+        toast({
+          title: "Error",
+          description: "Failed to load bots. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingBots(false);
+      }
+    };
+
+    fetchBots();
+  }, [toast]);
+
+  // Fetch documents when bot is selected
+  useEffect(() => {
+    if (!selectedBotId) {
+      setDocuments([]);
+      return;
+    }
+
+    const fetchDocuments = async () => {
+      const tenantId = localStorage.getItem('tenantId');
+
+      if (!tenantId) {
+        setError('No tenant ID found');
+        return;
+      }
+
+      setLoadingDocs(true);
+      setError(null);
+
+      try {
         const accessToken = await getValidAccessToken();
 
         if (!accessToken) {
-          setLoading(false);
           setError('Session expired. Please login again.');
           return;
         }
 
         const response = await fetch(
-          `/api-doc/v1/documents?tenantId=${tenantId}&documentType=BUSINESS&page=0&size=20&sortBy=createdAt&sortDir=desc`,
+          `/api-doc/v1/documents?tenantId=${tenantId}&documentType=CHATBOT&botId=${selectedBotId}&page=0&size=50&sortBy=createdAt&sortDir=desc`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -125,7 +194,7 @@ const BusinessDataManagement = () => {
           id: doc.id,
           name: doc.originalFileName || doc.fileName,
           size: formatFileSize(doc.size),
-          uploadDate: 'Recently uploaded',
+          uploadDate: formatDate(doc.createdAt),
           type: getFileExtension(doc.mimeType, doc.originalFileName || doc.fileName),
           downloadUrl: doc.downloadUrl,
         }));
@@ -140,20 +209,23 @@ const BusinessDataManagement = () => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        setLoadingDocs(false);
       }
     };
 
     fetchDocuments();
-  }, [toast]);
+  }, [selectedBotId, toast]);
 
   const getFileColor = (type: string) => {
     const colors: Record<string, string> = {
       pdf: "bg-orange-100 text-orange-600",
+      doc: "bg-blue-100 text-blue-600",
       docx: "bg-blue-100 text-blue-600",
       pptx: "bg-pink-100 text-pink-600",
       xlsx: "bg-green-100 text-green-600",
-      gantt: "bg-purple-100 text-purple-600",
+      xls: "bg-green-100 text-green-600",
+      txt: "bg-gray-100 text-gray-600",
+      csv: "bg-green-100 text-green-600",
     };
     return colors[type] || "bg-gray-100 text-gray-600";
   };
@@ -173,6 +245,15 @@ const BusinessDataManagement = () => {
     e.stopPropagation();
     setDragActive(false);
 
+    if (!selectedBotId) {
+      toast({
+        title: "Select a Bot",
+        description: "Please select a bot first before uploading documents.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       handleUploadFiles(Array.from(files));
@@ -180,6 +261,15 @@ const BusinessDataManagement = () => {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedBotId) {
+      toast({
+        title: "Select a Bot",
+        description: "Please select a bot first before uploading documents.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const files = e.target.files;
     if (files && files.length > 0) {
       handleUploadFiles(Array.from(files));
@@ -197,6 +287,15 @@ const BusinessDataManagement = () => {
       toast({
         title: "Error",
         description: "No tenant ID found. Please login again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedBotId) {
+      toast({
+        title: "Error",
+        description: "Please select a bot first.",
         variant: "destructive",
       });
       return;
@@ -220,7 +319,7 @@ const BusinessDataManagement = () => {
         const base64File = await fileToBase64(file);
 
         const response = await fetch(
-          `/api-doc/v1/documents/upload?tenantId=${tenantId}&documentType=BUSINESS&documentName=${encodeURIComponent(file.name)}`,
+          `/api-doc/v1/documents/upload?tenantId=${tenantId}&documentType=CHATBOT&botId=${selectedBotId}&documentName=${encodeURIComponent(file.name)}`,
           {
             method: 'POST',
             headers: {
@@ -298,7 +397,6 @@ const BusinessDataManagement = () => {
 
       // The downloadUrl from API is "/api/v1/documents/download/{id}"
       // but download endpoint is on document service, so use /api-doc/ prefix
-      // (Vite proxy: /api-doc → dev-api-iform-doc.impactodigifin.xyz with rewrite to /api)
       let fetchUrl = downloadUrl;
       if (downloadUrl.startsWith('/api/v1/documents/download/')) {
         fetchUrl = downloadUrl.replace('/api/', '/api-doc/');
@@ -326,7 +424,7 @@ const BusinessDataManagement = () => {
       // Clean up the object URL after a delay to allow the new tab to load
       setTimeout(() => {
         URL.revokeObjectURL(objectUrl);
-      }, 60000); // Revoke after 1 minute
+      }, 60000);
 
     } catch (err) {
       console.error('Error viewing document:', err);
@@ -387,11 +485,22 @@ const BusinessDataManagement = () => {
     }
   };
 
+  const handleRefresh = () => {
+    if (selectedBotId) {
+      // Trigger re-fetch by updating selectedBotId
+      const currentBot = selectedBotId;
+      setSelectedBotId('');
+      setTimeout(() => setSelectedBotId(currentBot), 0);
+    }
+  };
+
+  const selectedBot = bots.find(b => b.botId === selectedBotId);
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
         <DashboardSidebar />
-        
+
         <main className="flex-1 overflow-auto">
           <DashboardHeader />
 
@@ -399,141 +508,173 @@ const BusinessDataManagement = () => {
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Business Data Management</h1>
-                <p className="text-muted-foreground">Manage your knowledge base and training data</p>
+                <h1 className="text-2xl font-bold text-foreground">Chatbot Documents</h1>
+                <p className="text-muted-foreground">Manage documents for your chatbots</p>
               </div>
-              <Button
-                className="rounded-full bg-background border border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Files
-                  </>
-                )}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
+              <div className="flex items-center gap-3">
+                {/* Bot Selector */}
+                <Select value={selectedBotId} onValueChange={setSelectedBotId} disabled={loadingBots}>
+                  <SelectTrigger className="w-[220px]">
+                    <Bot className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder={loadingBots ? "Loading bots..." : "Select a bot"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bots.map((bot) => (
+                      <SelectItem key={bot.botId} value={bot.botId}>
+                        {bot.agentName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {/* Upload Area */}
-            <div 
-              className={`border-2 border-dashed rounded-2xl p-12 text-center mb-8 transition-colors ${
-                dragActive ? "border-primary bg-primary/5" : "border-border"
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                  <Upload className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">
-                    {uploading ? 'Uploading...' : 'Upload Business Data'}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    <button
-                      type="button"
-                      className="text-primary hover:underline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                    >
-                      Click to upload
-                    </button> or drag and drop
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">PDF, DOC, TXT, or other documents</p>
-                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleRefresh}
+                  disabled={!selectedBotId || loadingDocs}
+                  className="rounded-full"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingDocs ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             </div>
 
-            {/* Uploaded Files */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-foreground">Uploaded Files</h2>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search for Files"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 rounded-full bg-muted/50 border-none"
-                  />
+            {!selectedBotId ? (
+              // No bot selected state
+              <div className="border-2 border-dashed border-border rounded-2xl p-12 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    <Bot className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-lg">Select a Chatbot</h3>
+                    <p className="text-muted-foreground">
+                      Choose a chatbot from the dropdown above to view and manage its documents
+                    </p>
+                  </div>
                 </div>
               </div>
-
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : error ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>{error}</p>
-                </div>
-              ) : filteredFiles.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>No documents uploaded yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredFiles.map((file) => (
-                    <div
-                      key={file.id}
-                      className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{file.name}</p>
-                          <p className="text-sm text-muted-foreground">{file.size} • Uploaded {file.uploadDate}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary hover:text-primary hover:bg-primary/10"
-                          onClick={() => handleViewDocument(file.downloadUrl)}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteDocument(file.id, file.name)}
-                          disabled={deletingId === file.id}
-                        >
-                          {deletingId === file.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
+            ) : (
+              <>
+                {/* Upload Area */}
+                <div
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center mb-6 transition-colors ${
+                    dragActive ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                      <Upload className="w-6 h-6 text-muted-foreground" />
                     </div>
-                  ))}
+                    <div>
+                      <h3 className="font-semibold text-foreground">
+                        {uploading ? 'Uploading...' : `Upload Documents for ${selectedBot?.agentName || 'Chatbot'}`}
+                      </h3>
+                      <p className="text-muted-foreground">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                        >
+                          Click to upload
+                        </button> or drag and drop
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">PDF, DOC, DOCX, TXT files</p>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                {/* Documents List */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Documents ({filteredFiles.length})
+                    </h2>
+                    <div className="relative w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search documents..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 rounded-full bg-muted/50 border-none"
+                      />
+                    </div>
+                  </div>
+
+                  {loadingDocs ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : error ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>{error}</p>
+                    </div>
+                  ) : filteredFiles.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                      <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                      <p className="font-medium">No documents found</p>
+                      <p className="text-sm">Upload documents to train your chatbot</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-foreground">{file.name}</p>
+                              <p className="text-sm text-muted-foreground">{file.size} • {file.uploadDate}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-primary hover:text-primary hover:bg-primary/10"
+                              onClick={() => handleViewDocument(file.downloadUrl)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeleteDocument(file.id, file.name)}
+                              disabled={deletingId === file.id}
+                            >
+                              {deletingId === file.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -541,4 +682,4 @@ const BusinessDataManagement = () => {
   );
 };
 
-export default BusinessDataManagement;
+export default ChatbotDocuments;
