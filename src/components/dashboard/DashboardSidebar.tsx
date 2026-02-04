@@ -7,12 +7,10 @@ import {
   Bot,
   Mic,
   Users,
-  UserCheck,
   Settings,
   LogOut,
   ChevronDown,
   ChevronUp,
-  Search,
   Network
 } from "lucide-react";
 import {
@@ -76,8 +74,14 @@ const menuItems: MenuItem[] = [
       { title: "Demo Voice Interface", url: "/manage-voicebot" },
     ]
   },
-  { title: "CRM", url: "/crm", icon: Users },
-  { title: "Leads", url: "/leads", icon: UserCheck },
+  {
+    title: "CRM",
+    url: "/crm",
+    icon: Users,
+    subItems: [
+      { title: "Leads", url: "/leads" },
+    ]
+  },
   { title: "Knowledge Graph", url: "/knowledge-graph", icon: Network },
 ];
 
@@ -120,7 +124,7 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
           </div>
           {!collapsed && (
             <div>
-              <h1 className="text-lg font-bold text-primary">CHATBOT AI</h1>
+              <h1 className="text-lg font-bold text-primary">Agent Builder</h1>
             </div>
           )}
         </div>
@@ -144,12 +148,6 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
           </Button>
         )}
 
-        {/* Search Icon */}
-        {!collapsed && (
-          <Button variant="ghost" size="icon" className="mt-2 rounded-full">
-            <Search className="w-5 h-5" />
-          </Button>
-        )}
       </SidebarHeader>
 
       <Separator className="mx-4 w-auto" />

@@ -332,7 +332,7 @@ const BotCreation = () => {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <MessageSquare className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold text-primary">CHATBOT AI</span>
+          <span className="text-lg font-bold text-primary">Agent Builder</span>
         </Link>
         <Link to="/dashboard">
           <Button variant="outline" className="rounded-full">

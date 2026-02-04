@@ -61,7 +61,7 @@ const AuthLayout = ({ children, variant = "login" }: AuthLayoutProps) => {
             </div>
           </div>
           
-          <span className="text-primary font-bold text-lg tracking-wide">CHATBOT AI</span>
+          <span className="text-primary font-bold text-lg tracking-wide">Agent Builder</span>
 
           {variant === "login" ? (
             <>

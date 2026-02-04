@@ -265,13 +265,25 @@ export class AudioPlayer {
   }
 
   interrupt(): void {
-    if (this.currentSource) {
-      this.currentSource.stop();
-      this.currentSource = null;
-    }
+    console.log('AudioPlayer.interrupt() called');
+
+    // Clear queue FIRST to prevent playNext() from starting another chunk
+    // (in case source.stop() triggers onended synchronously)
     this.audioQueue = [];
     this.isPlaying = false;
+
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop();
+        console.log('Audio source stopped');
+      } catch (e) {
+        console.warn('Error stopping audio source:', e);
+      }
+      this.currentSource = null;
+    }
+
     this.onPlaybackEnd?.();
+    console.log('AudioPlayer.interrupt() complete, onPlaybackEnd called');
   }
 }
 

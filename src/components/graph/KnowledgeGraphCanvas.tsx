@@ -34,6 +34,7 @@ export const KnowledgeGraphCanvas = ({
   const [isStabilizing, setIsStabilizing] = useState(true);
 
   // Convert our nodes to vis-network format
+  // Using 'box' shape so text appears inside the node
   const convertNodes = useCallback((graphNodes: GraphNode[]) => {
     return graphNodes.map(node => {
       const colorConfig = NODE_COLORS[node.type] || NODE_COLORS.default;
@@ -57,12 +58,13 @@ export const KnowledgeGraphCanvas = ({
           color: '#FFFFFF',
           size: 12,
           face: 'Inter, sans-serif',
-          strokeWidth: 2,
-          strokeColor: 'rgba(0,0,0,0.3)',
+          multi: false,
         },
-        shape: 'dot',
-        size: 25,
+        // Use 'box' shape so text is inside the node
+        shape: 'box',
+        margin: { top: 10, right: 10, bottom: 10, left: 10 },
         borderWidth: 2,
+        borderWidthSelected: 3,
         shadow: {
           enabled: true,
           color: 'rgba(0,0,0,0.15)',
@@ -77,8 +79,9 @@ export const KnowledgeGraphCanvas = ({
   }, []);
 
   // Convert our edges to vis-network format
+  // Using straight lines with labels positioned above/below
   const convertEdges = useCallback((graphEdges: GraphEdge[]) => {
-    return graphEdges.map(edge => ({
+    return graphEdges.map((edge, index) => ({
       id: edge.id,
       from: edge.from,
       to: edge.to,
@@ -90,24 +93,28 @@ export const KnowledgeGraphCanvas = ({
         hover: GRAPH_THEME.edgeHighlight,
       },
       font: {
-        color: GRAPH_THEME.fontColorLight,
+        color: GRAPH_THEME.fontColor,
         size: 10,
         face: 'Inter, sans-serif',
-        strokeWidth: 0,
-        align: 'middle',
+        strokeWidth: 2,
+        strokeColor: '#FFFFFF',
+        align: 'horizontal',
+        // Position labels above or below the line, not on it
+        vadjust: index % 2 === 0 ? -12 : 12,
+        background: 'rgba(255,255,255,0.9)',
       },
       arrows: {
         to: {
           enabled: true,
           scaleFactor: 0.5,
+          type: 'arrow',
         },
       },
-      smooth: {
-        enabled: true,
-        type: 'curvedCW',
-        roundness: 0.2,
-      },
+      // Use straight lines, not curved
+      smooth: false,
       width: 1.5,
+      selectionWidth: 2,
+      hoverWidth: 2,
       // Store original data for retrieval
       originalData: edge,
     }));
@@ -119,12 +126,12 @@ export const KnowledgeGraphCanvas = ({
       enabled: true,
       solver: 'forceAtlas2Based',
       forceAtlas2Based: {
-        gravitationalConstant: -50,
-        centralGravity: 0.01,
-        springLength: 150,
+        gravitationalConstant: -80,
+        centralGravity: 0.002,        // Very low - lets separate clusters drift apart
+        springLength: 200,
         springConstant: 0.08,
         damping: 0.4,
-        avoidOverlap: 0.5,
+        avoidOverlap: 0.8,
       },
       stabilization: {
         enabled: true,
@@ -150,17 +157,19 @@ export const KnowledgeGraphCanvas = ({
       },
     },
     nodes: {
-      shape: 'dot',
-      scaling: {
-        min: 20,
-        max: 40,
+      // Box shape with text inside
+      shape: 'box',
+      margin: { top: 10, right: 10, bottom: 10, left: 10 },
+      font: {
+        color: '#FFFFFF',
+        size: 12,
       },
     },
     edges: {
-      smooth: {
-        enabled: true,
-        type: 'curvedCW',
-        roundness: 0.2,
+      // Disable smooth curves - use straight lines
+      smooth: false,
+      font: {
+        align: 'horizontal',
       },
     },
     layout: {

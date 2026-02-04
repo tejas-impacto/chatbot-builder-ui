@@ -11,7 +11,7 @@ const Index = () => {
             <Bot className="w-8 h-8 text-foreground" />
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-pink rounded-full" />
           </div>
-          <span className="text-primary font-bold text-lg">CHATBOT AI</span>
+          <span className="text-primary font-bold text-lg">Agent Builder</span>
         </div>
         <nav className="flex items-center gap-4">
           <Link

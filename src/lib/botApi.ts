@@ -153,7 +153,9 @@ export const getBotsByTenant = async (tenantId: string): Promise<GetBotsResponse
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || 'Failed to fetch bots');
+    throw new Error(error.message || 'Failed to fetch bots'
+      
+    );
   }
 
   return response.json();
@@ -439,6 +441,57 @@ export const getLeads = async (tenantId: string): Promise<GetLeadsResponse> => {
   return response.json();
 };
 
+// Create Lead interfaces
+export interface CreateLeadRequest {
+  tenantId: string;
+  botId: string;
+  sessionId?: string;
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  channelType?: 'VOICE' | 'CHAT';
+}
+
+export interface CreateLeadResponse {
+  status: number;
+  message: string;
+  responseStructure: {
+    toastMessage: string;
+    data: Lead;
+  };
+}
+
+/**
+ * Create a new lead
+ * @param leadData - The lead data to create
+ * @returns Created lead
+ */
+export const createLead = async (leadData: CreateLeadRequest): Promise<CreateLeadResponse> => {
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch('/api/v1/leads/interactions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'accept': '*/*',
+    },
+    body: JSON.stringify(leadData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to create lead');
+  }
+
+  return response.json();
+};
+
 export interface DeleteBotResponse {
   status: number;
   message: string;
@@ -554,17 +607,92 @@ export const getLeadInteractions = async (
   return response.json();
 };
 
+// Knowledge Graph interfaces
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  entityType: string;
+  description: string;
+  source: string;
+  properties: Record<string, string>;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  properties: Record<string, string>;
+}
+
+export interface KnowledgeGraphStats {
+  nodeCount: number;
+  edgeCount: number;
+  entityTypes: Record<string, number>;
+  relationshipTypes: Record<string, number>;
+}
+
+export interface KnowledgeGraphData {
+  status: string;
+  tenantId: string;
+  botId: string;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  stats: KnowledgeGraphStats;
+}
+
+export interface GetKnowledgeGraphResponse {
+  status: number;
+  message: string;
+  responseStructure: {
+    toastMessage: string;
+    data: KnowledgeGraphData;
+  };
+}
+
+/**
+ * Get knowledge graph for a bot
+ * @param tenantId - The tenant identifier
+ * @param botId - The bot identifier
+ * @returns Knowledge graph with nodes, edges, and stats
+ */
+export const getKnowledgeGraph = async (
+  tenantId: string,
+  botId: string
+): Promise<GetKnowledgeGraphResponse> => {
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch(`/api/v1/graph/tenants/${tenantId}/bots/${botId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'accept': '*/*',
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to fetch knowledge graph');
+  }
+
+  return response.json();
+};
+
 // Dashboard Metrics interfaces
 export interface DashboardMetrics {
+  bots: {
+    textBots: number;
+    voiceBots: number;
+    totalActive: number;
+  };
   sessions: {
     total: number;
     textSessions: number;
     voiceSessions: number;
-  };
-  bots: {
-    totalActive: number;
-    textBots: number;
-    voiceBots: number;
   };
 }
 
@@ -572,6 +700,7 @@ export interface GetDashboardMetricsResponse {
   status: number;
   message: string;
   responseStructure: {
+    toastMessage: string;
     data: DashboardMetrics;
   };
 }
@@ -579,7 +708,7 @@ export interface GetDashboardMetricsResponse {
 /**
  * Get dashboard metrics for a tenant
  * @param tenantId - The tenant identifier
- * @returns Dashboard metrics including sessions and bots counts
+ * @returns Dashboard metrics including bot and session counts
  */
 export const getDashboardMetrics = async (tenantId: string): Promise<GetDashboardMetricsResponse> => {
   const accessToken = await getValidAccessToken();

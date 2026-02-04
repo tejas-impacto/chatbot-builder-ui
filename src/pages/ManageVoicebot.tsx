@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -13,8 +14,11 @@ import { useVoiceChat } from "@/hooks/useVoiceChat";
 import { VoiceWaveform } from "@/components/voice/VoiceWaveform";
 import { VoiceControls } from "@/components/voice/VoiceControls";
 import { TranscriptionDisplay } from "@/components/voice/TranscriptionDisplay";
+import LeadFormModal from "@/components/chat/LeadFormModal";
 import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
 import { useToast } from "@/hooks/use-toast";
+import type { VoiceLeadInfo } from "@/lib/voiceApi";
+import type { UserInfo } from "@/types/chat";
 
 interface LocationState {
   botId: string;
@@ -31,6 +35,10 @@ const ManageVoicebot = () => {
   // Voice settings
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
+
+  // Lead form state
+  const [showLeadForm, setShowLeadForm] = useState(true);
+  const [leadInfo, setLeadInfo] = useState<VoiceLeadInfo | null>(null);
 
   // Get bot info from location state or use defaults for testing
   const tenantId = locationState?.tenantId || localStorage.getItem("tenantId") || "";
@@ -67,6 +75,20 @@ const ManageVoicebot = () => {
     if (state.isCallActive) {
       endCall();
     }
+    // Reset lead form to show again
+    setShowLeadForm(true);
+    setLeadInfo(null);
+  };
+
+  const handleLeadFormSubmit = (userInfo: UserInfo) => {
+    const voiceLeadInfo: VoiceLeadInfo = {
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName,
+      email: userInfo.email,
+      phone: userInfo.phone,
+    };
+    setLeadInfo(voiceLeadInfo);
+    setShowLeadForm(false);
   };
 
   const handleToggleCall = async () => {
@@ -81,7 +103,15 @@ const ManageVoicebot = () => {
         });
         return;
       }
-      await startCall();
+      if (!leadInfo) {
+        toast({
+          title: "Lead Information Required",
+          description: "Please fill out your information first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await startCall(leadInfo);
     }
   };
 
@@ -178,36 +208,52 @@ const ManageVoicebot = () => {
                   </div>
                 </div>
 
-                {/* Transcription Display */}
-                <TranscriptionDisplay
-                  transcriptions={transcriptions}
-                  responses={responses}
-                  currentState={state.currentState}
-                  className="flex-1"
-                />
+                {/* Lead Form or Chat Content */}
+                {showLeadForm ? (
+                  <div className="flex-1 flex items-center justify-center p-6">
+                    <Card className="w-full max-w-md">
+                      <CardContent className="p-0">
+                        <LeadFormModal
+                          onSubmit={handleLeadFormSubmit}
+                          chatbotName={botName}
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <>
+                    {/* Transcription Display */}
+                    <TranscriptionDisplay
+                      transcriptions={transcriptions}
+                      responses={responses}
+                      currentState={state.currentState}
+                      className="flex-1"
+                    />
 
-                {/* Waveform Visualization */}
-                <div className="px-4 py-2 border-t border-border">
-                  <VoiceWaveform
-                    audioLevel={audioLevel}
-                    isActive={state.isCallActive && !state.isMuted}
-                    state={state.currentState}
-                    className="h-16"
-                  />
-                </div>
+                    {/* Waveform Visualization */}
+                    <div className="px-4 py-2 border-t border-border">
+                      <VoiceWaveform
+                        audioLevel={audioLevel}
+                        isActive={state.isCallActive && !state.isMuted}
+                        state={state.currentState}
+                        className="h-16"
+                      />
+                    </div>
 
-                {/* Call Controls */}
-                <div className="p-6 border-t border-border">
-                  <VoiceControls
-                    isCallActive={state.isCallActive}
-                    isMuted={state.isMuted}
-                    isSpeaking={state.currentState === "VOICE_STATE_SPEAKING"}
-                    isConnecting={isConnecting}
-                    onToggleCall={handleToggleCall}
-                    onToggleMute={toggleMute}
-                    onInterrupt={interrupt}
-                  />
-                </div>
+                    {/* Call Controls */}
+                    <div className="p-6 border-t border-border">
+                      <VoiceControls
+                        isCallActive={state.isCallActive}
+                        isMuted={state.isMuted}
+                        isSpeaking={state.currentState === "VOICE_STATE_SPEAKING"}
+                        isConnecting={isConnecting}
+                        onToggleCall={handleToggleCall}
+                        onToggleMute={toggleMute}
+                        onInterrupt={interrupt}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Voice Settings Panel */}

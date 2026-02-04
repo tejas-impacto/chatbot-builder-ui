@@ -49,23 +49,30 @@ export interface SelectedElement {
   data: GraphNode | GraphEdge;
 }
 
-// Node colors for different types
+// Node colors - Simple two-color scheme
 export const NODE_COLORS: Record<string, NodeTypeConfig> = {
-  Organization: { color: '#E8744F', label: 'Organization' },
-  Product: { color: '#2196F3', label: 'Product' },
-  Location: { color: '#4CAF50', label: 'Location' },
-  Service: { color: '#9C27B0', label: 'Service' },
-  Person: { color: '#FF9800', label: 'Person' },
-  Category: { color: '#00BCD4', label: 'Category' },
-  default: { color: '#607D8B', label: 'Unknown' },
+  // Primary color for main entities (Organizations, Bots, etc.)
+  Organization: { color: '#1E3A5F', label: 'Organization' },  // Dark blue
+  Bot: { color: '#1E3A5F', label: 'Bot' },
+  Tenant: { color: '#1E3A5F', label: 'Tenant' },
+
+  // Secondary color for related entities (Products, Services, Locations, etc.)
+  Product: { color: '#475569', label: 'Product' },            // Slate gray
+  Location: { color: '#475569', label: 'Location' },
+  Service: { color: '#475569', label: 'Service' },
+  Person: { color: '#475569', label: 'Person' },
+  Category: { color: '#475569', label: 'Category' },
+  Entity: { color: '#475569', label: 'Entity' },
+  Concept: { color: '#475569', label: 'Concept' },
+  default: { color: '#475569', label: 'Other' },
 };
 
-// Graph theme constants
+// Graph theme constants - Clean, light theme
 export const GRAPH_THEME = {
-  background: '#F8FAFC',
-  edgeColor: '#94A3B8',
-  edgeHighlight: '#3B82F6',
-  nodeHighlight: '#1E40AF',
-  fontColor: '#1E293B',
-  fontColorLight: '#64748B',
+  background: '#FFFFFF',
+  edgeColor: '#64748B',
+  edgeHighlight: '#6366F1',
+  nodeHighlight: '#4F46E5',
+  fontColor: '#000000',
+  fontColorLight: '#000000',
 };

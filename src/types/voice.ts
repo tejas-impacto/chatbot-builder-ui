@@ -40,12 +40,19 @@ export interface EndSessionMessage {
   type: 'END_SESSION';
 }
 
+export interface ConfigUpdateMessage {
+  type: 'CONFIG_UPDATE';
+  voice?: string;
+  language?: string;
+}
+
 export type OutgoingVoiceMessage =
   | StartSessionMessage
   | InterruptMessage
   | PlaybackCompleteMessage
   | PingMessage
-  | EndSessionMessage;
+  | EndSessionMessage
+  | ConfigUpdateMessage;
 
 // Incoming WebSocket message types
 export interface ConnectedMessage {
@@ -59,39 +66,51 @@ export interface ConnectedMessage {
 export interface StateMessage {
   type: 'state';
   state: VoiceState;
-  timestamp: string;
+  timestamp: number;
 }
 
 export interface TranscriptionMessage {
   type: 'transcription';
   text: string;
   isFinal: boolean;
-  timestamp: string;
+  timestamp: number;
 }
 
 export interface ResponseTextMessage {
   type: 'response_text';
   text: string;
   isFinal: boolean;
-  timestamp: string;
+  timestamp: number;
 }
 
 export interface SentenceAudioMessage {
   type: 'sentence_audio';
   text: string;
-  format: string;
+  format: 'AUDIO_FORMAT_WAV';
   sampleRate: number;
   durationMs: number;
+  timestamp: number;
 }
 
 export interface ErrorMessage {
   type: 'error';
   errorMessage: string;
   recoverable: boolean;
+  timestamp: number;
 }
 
 export interface PongMessage {
   type: 'pong';
+}
+
+export interface InterruptedMessage {
+  type: 'interrupted';
+}
+
+export interface ConfigUpdatedMessage {
+  type: 'config_updated';
+  voice: string;
+  language: string;
 }
 
 export type IncomingVoiceMessage =
@@ -101,14 +120,18 @@ export type IncomingVoiceMessage =
   | ResponseTextMessage
   | SentenceAudioMessage
   | ErrorMessage
-  | PongMessage;
+  | PongMessage
+  | InterruptedMessage
+  | ConfigUpdatedMessage;
 
-// Voice states
+// Voice states (matching API guide)
 export type VoiceState =
   | 'VOICE_STATE_LISTENING'
   | 'VOICE_STATE_RECEIVING'
   | 'VOICE_STATE_PROCESSING'
-  | 'VOICE_STATE_SPEAKING';
+  | 'VOICE_STATE_SPEAKING'
+  | 'VOICE_STATE_ERROR'
+  | 'VOICE_STATE_DISCONNECTED';
 
 // Voice chat component state
 export interface VoiceChatState {

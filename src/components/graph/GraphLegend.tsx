@@ -1,19 +1,16 @@
-import { NODE_COLORS } from '@/types/graph';
 import { cn } from '@/lib/utils';
 
 interface GraphLegendProps {
-  activeTypes?: string[];
-  onTypeClick?: (type: string) => void;
   className?: string;
 }
 
-export const GraphLegend = ({
-  activeTypes,
-  onTypeClick,
-  className,
-}: GraphLegendProps) => {
-  const types = Object.entries(NODE_COLORS).filter(([key]) => key !== 'default');
+// Simple two-color legend
+const LEGEND_ITEMS = [
+  { label: 'Organization / Bot', color: '#1E3A5F' },
+  { label: 'Related Entities', color: '#475569' },
+];
 
+export const GraphLegend = ({ className }: GraphLegendProps) => {
   return (
     <div
       className={cn(
@@ -22,34 +19,18 @@ export const GraphLegend = ({
       )}
     >
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-        Node Types
+        Legend
       </h4>
-      <div className="flex flex-wrap gap-2">
-        {types.map(([type, config]) => {
-          const isActive = !activeTypes || activeTypes.includes(type);
-          return (
-            <button
-              key={type}
-              onClick={() => onTypeClick?.(type)}
-              className={cn(
-                'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all',
-                'hover:ring-2 hover:ring-offset-1 hover:ring-primary/20',
-                isActive ? 'opacity-100' : 'opacity-40',
-                onTypeClick && 'cursor-pointer'
-              )}
-              style={{
-                backgroundColor: `${config.color}20`,
-                color: config.color,
-              }}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: config.color }}
-              />
-              <span className="font-medium">{config.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex gap-4">
+        {LEGEND_ITEMS.map((item) => (
+          <div key={item.label} className="flex items-center gap-2">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-xs font-medium text-foreground">{item.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

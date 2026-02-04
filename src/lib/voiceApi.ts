@@ -1,6 +1,14 @@
 import { getValidAccessToken } from './auth';
 import type { VoiceSessionTicketResponse } from '@/types/voice';
 
+// Lead info interface for voice sessions
+export interface VoiceLeadInfo {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+}
+
 /**
  * Generate a fingerprint for voice sessions
  */
@@ -25,7 +33,8 @@ const generateVoiceFingerprint = (): string => {
  */
 export const getVoiceSessionTicket = async (
   tenantId: string,
-  botId: string
+  botId: string,
+  leadInfo?: VoiceLeadInfo
 ): Promise<VoiceSessionTicketResponse> => {
   const accessToken = await getValidAccessToken();
   const fingerprint = generateVoiceFingerprint();
@@ -41,6 +50,12 @@ export const getVoiceSessionTicket = async (
     body: JSON.stringify({
       botId,
       fingerprint,
+      ...(leadInfo && {
+        firstName: leadInfo.firstName,
+        lastName: leadInfo.lastName,
+        email: leadInfo.email,
+        phone: leadInfo.phone,
+      }),
     }),
   });
 
