@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Users,
   Loader2,
@@ -15,6 +16,7 @@ import {
   MoreVertical,
   MessageSquare,
   Mic,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,8 +55,15 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bgColor:
   converted: { label: "Converted", color: "text-green-600", bgColor: "bg-green-100" },
 };
 
+interface LocationState {
+  highlightLeadId?: string;
+  highlightSessionId?: string;
+}
+
 const Leads = () => {
+  const location = useLocation();
   const { toast } = useToast();
+  const state = (location.state as LocationState) || {};
   const [leads, setLeads] = useState<LeadWithStatus[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<LeadWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +138,22 @@ const Leads = () => {
   useEffect(() => {
     fetchLeads();
   }, []);
+
+  // Handle highlighting a specific lead from navigation state
+  useEffect(() => {
+    if (!loading && leads.length > 0 && (state.highlightLeadId || state.highlightSessionId)) {
+      const leadToHighlight = leads.find(
+        (lead) =>
+          lead.leadId === state.highlightLeadId ||
+          lead.sessionId === state.highlightSessionId
+      );
+      if (leadToHighlight) {
+        setSelectedLead(leadToHighlight);
+        // Clear the state after handling to prevent re-triggering
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [loading, leads, state.highlightLeadId, state.highlightSessionId]);
 
   useEffect(() => {
     let filtered = leads;
@@ -463,7 +488,7 @@ const Leads = () => {
                             </div>
                           </div>
 
-                          {/* Right side - Source and Actions */}
+                          {/* Right side - Source, Session ID and Actions */}
                           <div className="flex items-center gap-4 flex-shrink-0">
                             <div className="text-right text-sm">
                               <div className="flex items-center gap-1 text-muted-foreground">
@@ -482,6 +507,14 @@ const Leads = () => {
                                   )}
                                 </span>
                               </div>
+                              {lead.sessionId && (
+                                <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                                  <Hash className="w-3 h-3" />
+                                  <span className="font-mono truncate max-w-[120px]" title={lead.sessionId}>
+                                    {lead.sessionId.substring(0, 12)}...
+                                  </span>
+                                </div>
+                              )}
                               <div className="text-muted-foreground">
                                 Last contact: {formatRelativeTime(lead.createdAt)}
                               </div>
@@ -644,6 +677,15 @@ const Leads = () => {
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                      <Hash className="w-3 h-3" />
+                      Session ID
+                    </div>
+                    <p className="text-xs font-mono bg-muted px-2 py-1 rounded break-all">
+                      {selectedLead.sessionId || "-"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs">
                       <Clock className="w-3 h-3" />
                       Created At
                     </div>
@@ -675,6 +717,21 @@ const Leads = () => {
               <div className="flex items-center justify-between pt-2 border-t">
                 <span className="text-sm text-muted-foreground">Total Interactions</span>
                 <span className="text-sm font-semibold">{selectedLead.totalInteractions || 0}</span>
+              </div>
+
+              {/* View Conversations Button */}
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full rounded-full"
+                  onClick={() => {
+                    // TODO: Implement chat history view when endpoint is available
+                    console.log("View conversations for session:", selectedLead.sessionId);
+                  }}
+                >
+                  <History className="w-4 h-4 mr-2" />
+                  View Conversations
+                </Button>
               </div>
 
               {/* Status Change Buttons */}

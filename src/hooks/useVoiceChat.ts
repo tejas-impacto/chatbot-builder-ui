@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getVoiceSessionTicket, buildVoiceWebSocketUrl, type VoiceLeadInfo } from '@/lib/voiceApi';
 import { createLead } from '@/lib/botApi';
-import { getValidAccessToken } from '@/lib/auth';
 import { AudioRecorder, AudioPlayer, calculateAudioLevel } from '@/utils/audioUtils';
 import type {
   VoiceChatState,
@@ -601,43 +600,19 @@ export const useVoiceChat = ({
   }, [tenantId, botId, isConnecting, state.isCallActive, connectWebSocket, onError]);
 
   // End voice call
-  const endCall = useCallback(async () => {
+  const endCall = useCallback(() => {
     shouldReconnectRef.current = false;
 
-    // Send END_SESSION to WebSocket
+    // Send END_SESSION to WebSocket (session ends via WebSocket, not REST)
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'END_SESSION' }));
-    }
-
-    // Call REST API to end the voice session (same pattern as chat)
-    if (state.sessionId) {
-      try {
-        const accessToken = await getValidAccessToken();
-        const response = await fetch('/api/v1/voice/sessions', {
-          method: 'DELETE',
-          headers: {
-            'accept': '*/*',
-            'X-Session-Token': state.sessionId,
-            ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
-          },
-        });
-
-        if (!response.ok) {
-          console.warn('Failed to end voice session via REST API:', response.status);
-        } else {
-          console.log('Voice session ended successfully via REST API');
-        }
-      } catch (error) {
-        console.error('Error ending voice session via REST API:', error);
-        // Don't block cleanup if API call fails
-      }
     }
 
     // Clear lead info ref (lead was already submitted when session was ready)
     leadInfoRef.current = null;
 
     cleanup();
-  }, [cleanup, state.sessionId]);
+  }, [cleanup]);
 
   // Toggle mute
   const toggleMute = useCallback(() => {

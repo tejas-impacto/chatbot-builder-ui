@@ -1,9 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { RefreshCw, Bot, Settings2, AlertCircle, ArrowLeft } from "lucide-react";
+import { RefreshCw, Bot, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +13,6 @@ import { VoiceWaveform } from "@/components/voice/VoiceWaveform";
 import { VoiceControls } from "@/components/voice/VoiceControls";
 import { TranscriptionDisplay } from "@/components/voice/TranscriptionDisplay";
 import LeadFormModal from "@/components/chat/LeadFormModal";
-import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
 import { useToast } from "@/hooks/use-toast";
 import type { VoiceLeadInfo } from "@/lib/voiceApi";
 import type { UserInfo } from "@/types/chat";
@@ -44,6 +41,16 @@ const ManageVoicebot = () => {
   const tenantId = locationState?.tenantId || localStorage.getItem("tenantId") || "";
   const botId = locationState?.botId || "";
   const botName = locationState?.botName || "Voice Assistant";
+
+  // Load voice settings from localStorage (configured in BotDetails)
+  useEffect(() => {
+    if (botId) {
+      const savedVoice = localStorage.getItem(`voice_settings_${botId}_voice`);
+      const savedLanguage = localStorage.getItem(`voice_settings_${botId}_language`);
+      if (savedVoice) setSelectedVoice(savedVoice);
+      if (savedLanguage) setSelectedLanguage(savedLanguage);
+    }
+  }, [botId]);
 
   // Voice chat hook
   const {
@@ -135,10 +142,10 @@ const ManageVoicebot = () => {
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
         <DashboardSidebar />
 
-        <main className="flex-1 overflow-auto flex flex-col">
+        <main className="flex-1 flex flex-col">
           <DashboardHeader />
 
-          <div className="p-6 flex-1 flex flex-col">
+          <div className="p-6 flex-1">
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
@@ -186,10 +193,9 @@ const ManageVoicebot = () => {
               </Alert>
             )}
 
-            {/* Content Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Voice Chat Container */}
-              <div className="lg:col-span-2 border border-border rounded-2xl bg-background flex flex-col min-h-[600px]">
+            {/* Voice Chat Container - Full Width */}
+            <div className="max-w-4xl mx-auto">
+              <div className="border border-border rounded-2xl bg-background flex flex-col h-[calc(100vh-160px)] min-h-[600px]">
                 {/* Chat Header */}
                 <div className="p-4 border-b border-border">
                   <div className="flex items-center justify-between">
@@ -222,13 +228,15 @@ const ManageVoicebot = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Transcription Display */}
-                    <TranscriptionDisplay
-                      transcriptions={transcriptions}
-                      responses={responses}
-                      currentState={state.currentState}
-                      className="flex-1"
-                    />
+                    {/* Transcription Display - scrollable area */}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <TranscriptionDisplay
+                        transcriptions={transcriptions}
+                        responses={responses}
+                        currentState={state.currentState}
+                        className="h-full"
+                      />
+                    </div>
 
                     {/* Waveform Visualization */}
                     <div className="px-4 py-2 border-t border-border">
@@ -254,107 +262,6 @@ const ManageVoicebot = () => {
                     </div>
                   </>
                 )}
-              </div>
-
-              {/* Voice Settings Panel */}
-              <div className="border border-border rounded-2xl bg-background p-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Settings2 className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-semibold text-foreground">Voice Settings</h2>
-                </div>
-                <p className="text-sm text-muted-foreground mb-6">Configure voice options before starting a call</p>
-
-                <div className="space-y-6">
-                  <div>
-                    <Label className="text-sm font-medium text-foreground">Voice</Label>
-                    <Select
-                      value={selectedVoice}
-                      onValueChange={setSelectedVoice}
-                      disabled={state.isCallActive}
-                    >
-                      <SelectTrigger className="mt-2 rounded-xl border-border/50">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VOICE_OPTIONS.map((voice) => (
-                          <SelectItem key={voice.value} value={voice.value}>
-                            {voice.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium text-foreground">Language</Label>
-                    <Select
-                      value={selectedLanguage}
-                      onValueChange={setSelectedLanguage}
-                      disabled={state.isCallActive}
-                    >
-                      <SelectTrigger className="mt-2 rounded-xl border-border/50">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LANGUAGE_OPTIONS.map((lang) => (
-                          <SelectItem key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="pt-4 border-t border-border">
-                    <h3 className="font-medium text-foreground mb-4">Session Info</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Status</span>
-                        <span className="font-medium text-foreground">
-                          {state.isCallActive ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Messages</span>
-                        <span className="font-medium text-foreground">
-                          {transcriptions.filter(t => t.isFinal).length + responses.length}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Microphone</span>
-                        <span className={`font-medium ${state.isMuted ? "text-destructive" : "text-green-500"}`}>
-                          {state.isMuted ? "Muted" : "Active"}
-                        </span>
-                      </div>
-                      {state.sessionId && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Session ID</span>
-                          <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={state.sessionId}>
-                            {state.sessionId}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-border">
-                    <h3 className="font-medium text-foreground mb-4">Bot Details</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Bot ID</span>
-                        <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={botId}>
-                          {botId || "Not selected"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Tenant ID</span>
-                        <span className="font-medium text-foreground text-xs truncate max-w-[120px]" title={tenantId}>
-                          {tenantId || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

@@ -9,6 +9,9 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import GoogleCallback from "./pages/GoogleCallback";
+import GoogleUserWelcome from "./pages/GoogleUserWelcome";
+import SetupPassword from "./pages/SetupPassword";
+import ForgotPassword from "./pages/ForgotPassword";
 import Onboarding from "./pages/Onboarding";
 import BotCreation from "./pages/BotCreation";
 import BotCreationProgress from "./pages/BotCreationProgress";
@@ -22,7 +25,6 @@ import BotsAvailable from "./pages/BotsAvailable";
 import ChatbotEndpoints from "./pages/ChatbotEndpoints";
 import ChatbotDocuments from "./pages/ChatbotDocuments";
 import VoicebotDocuments from "./pages/VoicebotDocuments";
-import ManageAgents from "./pages/ManageAgents";
 import BotDetails from "./pages/BotDetails";
 import BotEdit from "./pages/BotEdit";
 import UnresolvedQueries from "./pages/UnresolvedQueries";
@@ -52,12 +54,19 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/auth/google/callback" element={<GoogleCallback />} />
+          <Route path="/google-user-welcome" element={<GoogleUserWelcome />} />
+          <Route path="/setup-password" element={<SetupPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/bot-creation" element={<BotCreation />} />
           <Route path="/bot-creation-progress" element={<BotCreationProgress />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/manage-agents" element={<ManageAgents />} />
+          <Route path="/manage-agents" element={<BotsAvailable />} />
+          <Route path="/manage-agents/chat" element={<BotsAvailable />} />
+          <Route path="/manage-agents/voice" element={<BotsAvailable />} />
+          <Route path="/manage-agents/bot/:botId" element={<BotDetails />} />
+          <Route path="/manage-agents/bot/:botId/edit" element={<BotEdit />} />
           <Route path="/business-data" element={<BusinessDataManagement />} />
           <Route path="/business-data/overview" element={<BusinessDataOverview />} />
           <Route path="/manage-chatbot" element={<ManageChatbot />} />

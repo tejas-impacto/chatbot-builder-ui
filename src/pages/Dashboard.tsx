@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { getDashboardMetrics, type DashboardMetrics } from "@/lib/botApi";
+import { getDashboardMetrics, getBotsByTenant, type DashboardMetrics, type Bot as BotType } from "@/lib/botApi";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -28,6 +28,8 @@ const Dashboard = () => {
   const [requiresOnboarding, setRequiresOnboarding] = useState(false);
   const [metricsData, setMetricsData] = useState<DashboardMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  const [bots, setBots] = useState<BotType[]>([]);
+  const [botsLoading, setBotsLoading] = useState(true);
 
   useEffect(() => {
     // Check if onboarding was skipped and not completed
@@ -64,6 +66,29 @@ const Dashboard = () => {
     };
 
     fetchMetrics();
+  }, []);
+
+  useEffect(() => {
+    const fetchBots = async () => {
+      try {
+        const tenantId = localStorage.getItem('tenantId');
+        if (!tenantId) {
+          setBotsLoading(false);
+          return;
+        }
+
+        const response = await getBotsByTenant(tenantId);
+        if (response.responseStructure?.data) {
+          setBots(response.responseStructure.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch bots:', error);
+      } finally {
+        setBotsLoading(false);
+      }
+    };
+
+    fetchBots();
   }, []);
 
   // Handler to show popup when user tries to perform a blocked action
@@ -118,32 +143,6 @@ const Dashboard = () => {
     { id: 4, action: "Agent updated", agent: "Product Advisor", time: "3 hours ago" },
   ];
 
-  const agents = [
-    { 
-      id: 1, 
-      name: "Support Bot", 
-      status: "Active", 
-      tone: "Professional", 
-      responseStyle: "Detailed",
-      conversations: 1234
-    },
-    { 
-      id: 2, 
-      name: "Sales Agent", 
-      status: "Active", 
-      tone: "Friendly", 
-      responseStyle: "Concise",
-      conversations: 892
-    },
-    { 
-      id: 3, 
-      name: "FAQ Bot", 
-      status: "Training", 
-      tone: "Casual", 
-      responseStyle: "Short",
-      conversations: 567
-    },
-  ];
 
   return (
     <SidebarProvider>
@@ -282,12 +281,12 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* AI Agents */}
+              {/* Most Used Bots */}
               <Card className="lg:col-span-2 border-border/50 shadow-sm">
                 <CardHeader className="pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Bot className="w-5 h-5 text-primary" />
-                    AI Agents
+                    Most Used Bots
                   </CardTitle>
                   <Button
                     variant="outline"
@@ -297,51 +296,77 @@ const Dashboard = () => {
                       if (requiresOnboarding) {
                         handleBlockedAction();
                       } else {
-                        navigate("/bot-creation");
+                        navigate("/manage-agents");
                       }
                     }}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
-                    New Agent
+                    View All
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {agents.map((agent) => (
-                    <div 
-                      key={agent.id} 
-                      className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                          <Bot className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-foreground">{agent.name}</p>
-                            <Badge 
-                              variant={agent.status === "Active" ? "default" : "secondary"}
-                              className={agent.status === "Active" ? "bg-green-500/10 text-green-600 hover:bg-green-500/20" : ""}
-                            >
-                              {agent.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="text-xs text-muted-foreground">Tone: {agent.tone}</span>
-                            <span className="text-xs text-muted-foreground">Style: {agent.responseStyle}</span>
-                          </div>
-                        </div>
+                  {botsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  ) : bots.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <Bot className="w-8 h-8 text-primary" />
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-foreground">{agent.conversations}</p>
-                          <p className="text-xs text-muted-foreground">conversations</p>
+                      <p className="text-muted-foreground mb-4">No bots created yet</p>
+                      <Button
+                        onClick={() => navigate('/bot-creation')}
+                        className="rounded-full"
+                        disabled={requiresOnboarding}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Your First Bot
+                      </Button>
+                    </div>
+                  ) : (
+                    bots.slice(0, 4).map((bot) => (
+                      <div
+                        key={bot.botId}
+                        className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer"
+                        onClick={() => navigate(`/manage-agents/bot/${bot.botId}`, { state: { bot } })}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                            {bot.channelType === 'VOICE' ? (
+                              <Mic className="w-6 h-6 text-primary" />
+                            ) : (
+                              <Bot className="w-6 h-6 text-primary" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-foreground">{bot.agentName}</p>
+                              <Badge
+                                variant={bot.active ? "default" : "secondary"}
+                                className={bot.active ? "bg-green-500/10 text-green-600 hover:bg-green-500/20" : ""}
+                              >
+                                {bot.active ? 'Active' : 'Inactive'}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {bot.channelType === 'VOICE' ? 'Voice' : 'Chat'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1">
+                              {bot.toneOfVoice && (
+                                <span className="text-xs text-muted-foreground">Tone: {bot.toneOfVoice}</span>
+                              )}
+                              {bot.purposeCategory && (
+                                <span className="text-xs text-muted-foreground">Purpose: {bot.purposeCategory}</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                         <Button variant="ghost" size="icon" className="rounded-full">
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { RefreshCw, Bot, Send, Loader2, X } from "lucide-react";
+import { RefreshCw, Bot, Send, Loader2, X, ArrowLeft } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,11 +62,22 @@ const ManageChatbot = () => {
 
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Ref for input field focus
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-focus input when streaming ends
+  useEffect(() => {
+    if (!isStreaming && !showLeadForm) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [isStreaming, showLeadForm]);
 
   // Initialize with welcome message
   useEffect(() => {
@@ -283,11 +294,21 @@ const ManageChatbot = () => {
           <div className="p-6 flex-1 flex flex-col">
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Chat Interface</h1>
-                <p className="text-muted-foreground">
-                  {isDemoMode ? "Demo mode - Test your chatbot" : "Live chat with your AI assistant"}
-                </p>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(-1)}
+                  className="rounded-full"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">Chat Interface</h1>
+                  <p className="text-muted-foreground">
+                    {isDemoMode ? "Demo mode - Test your chatbot" : `Testing: ${chatbotName}`}
+                  </p>
+                </div>
               </div>
               <Button
                 onClick={handleResetChat}
@@ -409,6 +430,7 @@ const ManageChatbot = () => {
               <div className="p-4 border-t border-border">
                 <div className="flex items-center gap-3">
                   <Input
+                    ref={inputRef}
                     placeholder={showLeadForm ? "Please fill out the form first..." : "Type a message"}
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}

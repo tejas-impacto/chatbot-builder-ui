@@ -16,6 +16,7 @@ interface PersonaVoiceStepProps {
   data: BotCreationData;
   onChange: (data: Partial<BotCreationData>) => void;
   errors?: Record<string, string>;
+  botType: "chat" | "voice";
 }
 
 const personaOptions = [
@@ -35,7 +36,7 @@ const voiceToneOptions = [
   { value: "professional", label: "Professional", description: "Formal and business - Like" },
 ];
 
-const PersonaVoiceStep = ({ data, onChange, errors }: PersonaVoiceStepProps) => {
+const PersonaVoiceStep = ({ data, onChange, errors, botType }: PersonaVoiceStepProps) => {
   return (
     <div className="space-y-6">
       {/* Select Persona */}
@@ -74,37 +75,39 @@ const PersonaVoiceStep = ({ data, onChange, errors }: PersonaVoiceStepProps) => 
         )}
       </div>
 
-      {/* Tone of the voice */}
-      <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground">
-          Tone of the voice
-        </Label>
-        <div className="grid grid-cols-3 gap-3">
-          {voiceToneOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange({ voiceTone: option.value })}
-              className={`p-4 rounded-xl border text-left transition-all duration-200 ${
-                data.voiceTone === option.value
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-input hover:border-primary/50"
-              }`}
-            >
-              <span className={`block font-medium ${
-                data.voiceTone === option.value ? "text-primary" : "text-muted-foreground"
-              }`}>
-                {option.label}
-              </span>
-              <span className={`text-xs ${
-                data.voiceTone === option.value ? "text-primary/80" : "text-muted-foreground/60"
-              }`}>
-                {option.description}
-              </span>
-            </button>
-          ))}
+      {/* Tone of the voice - only for voice bots */}
+      {botType === "voice" && (
+        <div className="space-y-3">
+          <Label className="text-sm font-medium text-foreground">
+            Tone of the voice
+          </Label>
+          <div className="grid grid-cols-3 gap-3">
+            {voiceToneOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onChange({ voiceTone: option.value })}
+                className={`p-4 rounded-xl border text-left transition-all duration-200 ${
+                  data.voiceTone === option.value
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-input hover:border-primary/50"
+                }`}
+              >
+                <span className={`block font-medium ${
+                  data.voiceTone === option.value ? "text-primary" : "text-muted-foreground"
+                }`}>
+                  {option.label}
+                </span>
+                <span className={`text-xs ${
+                  data.voiceTone === option.value ? "text-primary/80" : "text-muted-foreground/60"
+                }`}>
+                  {option.description}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Name of the agent */}
       <div className="space-y-2">

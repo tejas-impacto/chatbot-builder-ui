@@ -316,7 +316,7 @@ const BotCreation = () => {
       case 3:
         return <PurposeCategoryStep data={formData} onChange={updateFormData} errors={stepErrors} />;
       case 4:
-        return <PersonaVoiceStep data={formData} onChange={updateFormData} errors={stepErrors} />;
+        return <PersonaVoiceStep data={formData} onChange={updateFormData} errors={stepErrors} botType={formData.botType} />;
       case 5:
         return <UploadDocumentsStep data={formData} onChange={updateFormData} />;
       default:

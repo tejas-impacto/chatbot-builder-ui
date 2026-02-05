@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Database,
   Bot,
-  Mic,
   Users,
   Settings,
   LogOut,
@@ -47,9 +46,9 @@ interface DashboardSidebarProps {
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { 
-    title: "Business Data Manage", 
-    url: "/business-data", 
+  {
+    title: "Business Data Manage",
+    url: "/business-data",
     icon: Database,
     subItems: [
       { title: "Business Data Overview", url: "/business-data/overview" },
@@ -57,21 +56,13 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
-    title: "Manage Chat bot",
-    url: "/manage-chatbot",
+    title: "Manage Agents",
+    url: "/manage-agents",
     icon: Bot,
     subItems: [
-      { title: "Bots Available", url: "/manage-chatbot/bots" },
-      { title: "Demo Chat Interface", url: "/manage-chatbot" },
-    ]
-  },
-  {
-    title: "Manage Voice bot",
-    url: "/manage-voicebot",
-    icon: Mic,
-    subItems: [
-      { title: "Bots Available", url: "/manage-voicebot/bots" },
-      { title: "Demo Voice Interface", url: "/manage-voicebot" },
+      { title: "All Agents", url: "/manage-agents" },
+      { title: "Chat Agents", url: "/manage-agents/chat" },
+      { title: "Voice Agents", url: "/manage-agents/voice" },
     ]
   },
   {

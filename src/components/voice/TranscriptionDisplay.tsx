@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Bot, User } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import type { TranscriptionEntry, ResponseEntry, VoiceState } from '@/types/voice';
 
@@ -25,6 +26,7 @@ export const TranscriptionDisplay = ({
   className,
 }: TranscriptionDisplayProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Combine and sort by timestamp
   const conversation: ConversationItem[] = [
@@ -46,15 +48,20 @@ export const TranscriptionDisplay = ({
   // Get current interim transcription
   const interimTranscription = transcriptions.find(t => !t.isFinal);
 
-  // Auto-scroll
+  // Get the last message text to trigger scroll on updates
+  const lastMessageText = conversation[conversation.length - 1]?.text || '';
+
+  // Auto-scroll to bottom when new messages arrive or content updates
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [conversation.length, interimTranscription?.text]);
+    // Use setTimeout to ensure DOM is updated before scrolling
+    const timer = setTimeout(() => {
+      if (scrollRef.current) {
+        // Scroll the container to the bottom instantly (no smooth scrolling)
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [conversation.length, lastMessageText, interimTranscription?.text, currentState]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -65,7 +72,7 @@ export const TranscriptionDisplay = ({
   return (
     <div
       ref={scrollRef}
-      className={cn('flex-1 overflow-y-auto p-4 space-y-4', className)}
+      className={cn('overflow-y-auto p-4 space-y-4', className)}
     >
       {isEmpty && (
         <div className="flex flex-col items-center justify-center h-full text-center">
@@ -109,7 +116,29 @@ export const TranscriptionDisplay = ({
                   : 'bg-muted rounded-bl-md'
               )}
             >
-              <p className="text-sm whitespace-pre-wrap">{item.text}</p>
+              {item.sender === 'bot' ? (
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="my-1">{children}</p>,
+                      ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+                      li: ({ children }) => <li className="text-sm">{children}</li>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      em: ({ children }) => <em className="italic">{children}</em>,
+                      h1: ({ children }) => <h1 className="text-base font-bold my-1">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-sm font-bold my-1">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-sm font-bold my-1">{children}</h3>,
+                      code: ({ children }) => <code className="bg-muted-foreground/20 px-1 rounded text-xs">{children}</code>,
+                      a: ({ href, children }) => <a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                    }}
+                  >
+                    {item.text}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{item.text}</p>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 px-1">
               {formatTime(item.timestamp)}
@@ -156,6 +185,9 @@ export const TranscriptionDisplay = ({
           </div>
         </div>
       )}
+
+      {/* Auto-scroll anchor */}
+      <div ref={bottomRef} />
     </div>
   );
 };

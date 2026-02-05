@@ -1,16 +1,26 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
 import { useToast } from "@/hooks/use-toast";
 import { startTokenRefreshTimer, storeTokenTimestamp } from "@/lib/auth";
 
+type LoginStep = "email" | "password";
+
+interface UserAuthInfo {
+  exists: boolean;
+  authMethod: "email" | "google" | "both";
+  hasPassword: boolean;
+}
+
 const Login = () => {
+  const [step, setStep] = useState<LoginStep>("email");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -80,7 +90,92 @@ const Login = () => {
     }
   }, [navigate, toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Check user's email status when continue is clicked
+  const checkEmailStatus = async (): Promise<UserAuthInfo | null> => {
+    if (!email) return null;
+
+    setIsCheckingEmail(true);
+    try {
+      const response = await fetch('/api/v1/auth/check-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // API error - check message for user not found
+        const message = data.message || data.responseStructure?.toastMessage || '';
+        if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('not exist')) {
+          return { exists: false, authMethod: "email", hasPassword: false };
+        }
+        throw new Error(message || 'Failed to check email');
+      }
+
+      const userData = data.responseStructure?.data || data;
+      return {
+        exists: userData.emailExists ?? false,
+        authMethod: userData.primaryAuthMethod || "email",
+        hasPassword: userData.hasPassword ?? false,
+      };
+    } catch (error) {
+      console.error('Error checking email:', error);
+      // Show error to user
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to check email. Please try again.",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleEmailContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email) {
+      toast({
+        title: "Error",
+        description: "Please enter your email",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const userInfo = await checkEmailStatus();
+
+    if (!userInfo) {
+      // Error occurred, already shown toast
+      return;
+    }
+
+    // Email doesn't exist → redirect to signup
+    if (!userInfo.exists) {
+      toast({
+        title: "Account Not Found",
+        description: "No account found with this email. Please sign up.",
+      });
+      navigate("/signup", { state: { email } });
+      return;
+    }
+
+    // Email exists but no password (Google user) → redirect to Google welcome page
+    if (userInfo.exists && !userInfo.hasPassword) {
+      navigate("/google-user-welcome", { state: { email } });
+      return;
+    }
+
+    // Email exists and has password → proceed to password step
+    setStep("password");
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -100,7 +195,7 @@ const Login = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || data.responseStructure?.toastMessage || 'Login failed');
       }
 
       // Store tokens in localStorage
@@ -153,6 +248,11 @@ const Login = () => {
     }
   };
 
+  const handleBackToEmail = () => {
+    setStep("email");
+    setPassword("");
+  };
+
   return (
     <AuthLayout variant="login">
       <div>
@@ -165,60 +265,108 @@ const Login = () => {
           We are very happy to see you back!
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ex: snappy@gmail.com"
-              className="auth-input"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-              Password
-            </label>
-            <div className="relative">
+        {step === "email" ? (
+          // Email Step
+          <form onSubmit={handleEmailContinue} className="mt-8 space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                Email
+              </label>
               <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter Password"
-                className="auth-input pr-12"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ex: snappy@gmail.com"
+                className="auth-input"
                 required
+                disabled={isCheckingEmail}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
             </div>
-            <Link to="/forgot-password" className="inline-block mt-2 text-sm auth-link">
-              Forgot Password?
-            </Link>
-          </div>
 
-          <button type="submit" className="auth-button-primary" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
-                Logging in...
-              </>
-            ) : (
-              "Login"
-            )}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="auth-button-primary flex items-center justify-center gap-2"
+              disabled={isCheckingEmail}
+            >
+              {isCheckingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          // Password Step
+          <form onSubmit={handleLogin} className="mt-8 space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="email-display" className="block text-sm font-medium text-foreground">
+                  Email
+                </label>
+                <button
+                  type="button"
+                  onClick={handleBackToEmail}
+                  className="text-sm auth-link"
+                >
+                  Change
+                </button>
+              </div>
+              <input
+                id="email-display"
+                type="email"
+                value={email}
+                className="auth-input bg-muted/50"
+                disabled
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter Password"
+                  className="auth-input pr-12"
+                  required
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <Link to="/forgot-password" className="inline-block mt-2 text-sm auth-link">
+                Forgot Password?
+              </Link>
+            </div>
+
+            <button type="submit" className="auth-button-primary" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                  Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
+            </button>
+          </form>
+        )}
 
         <div className="mt-6">
           <SocialLoginButtons />

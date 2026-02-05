@@ -23,6 +23,7 @@ interface BotConfig {
   persona: string;
   tone_of_voice: string;
   agent_name: string;
+  channelType?: 'VOICE' | 'TEXT';
 }
 
 interface LocationState {
@@ -166,9 +167,12 @@ const BotCreationProgress = () => {
     }
   };
 
-  // Navigate to chat interface
+  // Navigate to appropriate interface based on bot type
   const handleStartChatting = () => {
-    navigate("/manage-chatbot", {
+    const isVoiceBot = botConfig?.channelType === 'VOICE';
+    const targetRoute = isVoiceBot ? "/manage-voicebot" : "/manage-chatbot";
+
+    navigate(targetRoute, {
       state: {
         botId: botId,
         chatbotName: agentName,
@@ -190,7 +194,7 @@ const BotCreationProgress = () => {
 
           {/* Success Message */}
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            Chatbot Created Successfully!
+            {botConfig?.channelType === 'VOICE' ? 'Voice Bot' : 'Chatbot'} Created Successfully!
           </h1>
           <p className="text-muted-foreground mb-8">
             Your AI agent "{agentName}" is ready to go.

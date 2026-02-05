@@ -6,7 +6,6 @@ import {
   Mic,
   Copy,
   Check,
-  Terminal,
   Code,
   Link2,
   FileText,
@@ -17,9 +16,11 @@ import {
   Trash2,
   Loader2,
   File,
-  Clock,
   ChevronDown,
   ChevronRight,
+  Users,
+  ExternalLink as ExternalLinkIcon,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken } from "@/lib/auth";
 import type { Bot as BotType } from "@/lib/botApi";
-import { getUnresolvedQueries, submitQueryAnswers, type UnresolvedQuery } from "@/lib/botApi";
+import { getUnresolvedQueries, submitQueryAnswers, getLeadInteractions, deleteBot, type UnresolvedQuery, type LeadInteraction } from "@/lib/botApi";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -40,7 +41,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { HelpCircle, ExternalLink } from "lucide-react";
+import { HelpCircle, ExternalLink, Volume2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
 import {
   Collapsible,
   CollapsibleContent,
@@ -104,6 +108,13 @@ const BotDetails = () => {
   const [answerText, setAnswerText] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [totalQueries, setTotalQueries] = useState(0);
+  const [leads, setLeads] = useState<LeadInteraction[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
+  const [botDeleteDialogOpen, setBotDeleteDialogOpen] = useState(false);
+  const [isDeletingBot, setIsDeletingBot] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState("alloy");
+  const [selectedLanguage, setSelectedLanguage] = useState("en");
 
   const tenantId = localStorage.getItem("tenantId") || "";
   const isVoiceBot = bot?.channelType === "VOICE";
@@ -153,7 +164,33 @@ const BotDetails = () => {
   useEffect(() => {
     fetchDocuments();
     fetchQueries();
+    fetchLeads();
   }, [botId]);
+
+  // Load voice settings from localStorage for this bot
+  useEffect(() => {
+    if (botId && isVoiceBot) {
+      const savedVoice = localStorage.getItem(`voice_settings_${botId}_voice`);
+      const savedLanguage = localStorage.getItem(`voice_settings_${botId}_language`);
+      if (savedVoice) setSelectedVoice(savedVoice);
+      if (savedLanguage) setSelectedLanguage(savedLanguage);
+    }
+  }, [botId, isVoiceBot]);
+
+  // Save voice settings to localStorage
+  const handleVoiceChange = (voice: string) => {
+    setSelectedVoice(voice);
+    if (botId) {
+      localStorage.setItem(`voice_settings_${botId}_voice`, voice);
+    }
+  };
+
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguage(language);
+    if (botId) {
+      localStorage.setItem(`voice_settings_${botId}_language`, language);
+    }
+  };
 
   // Fetch unresolved queries for this bot
   const fetchQueries = async () => {
@@ -169,6 +206,21 @@ const BotDetails = () => {
       console.error("Error fetching unresolved queries:", error);
     } finally {
       setLoadingQueries(false);
+    }
+  };
+
+  // Fetch leads/chat history for this bot
+  const fetchLeads = async () => {
+    if (!botId || !tenantId) return;
+
+    try {
+      setLoadingLeads(true);
+      const response = await getLeadInteractions(tenantId, botId, 0, 10);
+      setLeads(response.data || []);
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+    } finally {
+      setLoadingLeads(false);
     }
   };
 
@@ -341,6 +393,30 @@ const BotDetails = () => {
     }
   };
 
+  const handleDeleteBot = async () => {
+    if (!botId || !tenantId) return;
+
+    setIsDeletingBot(true);
+    try {
+      await deleteBot(botId, tenantId);
+      toast({
+        title: "Bot Deleted",
+        description: `${bot?.agentName} has been permanently deleted.`,
+      });
+      navigate("/manage-agents");
+    } catch (error) {
+      console.error("Failed to delete bot:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete bot. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingBot(false);
+      setBotDeleteDialogOpen(false);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Unknown";
     try {
@@ -440,21 +516,48 @@ const BotDetails = () => {
                   </h1>
                 </div>
               </div>
-              <Button
-                onClick={() =>
-                  navigate("/manage-chatbot", {
-                    state: {
-                      botId: botId,
-                      chatbotName: bot.agentName,
-                      tenantId,
-                      showLeadForm: true,
-                    },
-                  })
-                }
-                className="rounded-full"
-              >
-                Try Bot
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    navigate("/bot-creation", {
+                      state: {
+                        editMode: true,
+                        botData: bot,
+                      },
+                    })
+                  }
+                  className="rounded-full"
+                  title="Edit Bot Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setBotDeleteDialogOpen(true)}
+                  className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                  title="Delete Bot"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={() =>
+                    navigate(isVoiceBot ? "/manage-voicebot" : "/manage-chatbot", {
+                      state: {
+                        botId: botId,
+                        chatbotName: bot.agentName,
+                        tenantId,
+                        showLeadForm: true,
+                      },
+                    })
+                  }
+                  className="rounded-full"
+                >
+                  Try Bot
+                </Button>
+              </div>
             </div>
 
             {/* Bot Overview Card */}
@@ -538,6 +641,74 @@ const BotDetails = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Voice Settings Card - Only for Voice Bots */}
+            {isVoiceBot && (
+              <Collapsible open={voiceSettingsOpen} onOpenChange={setVoiceSettingsOpen}>
+                <Card className="border-border/50">
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Volume2 className="w-5 h-5 text-primary" />
+                          Voice Settings
+                        </CardTitle>
+                        {voiceSettingsOpen ? (
+                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Configure voice and language for this bot
+                      </p>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Voice</Label>
+                          <Select value={selectedVoice} onValueChange={handleVoiceChange}>
+                            <SelectTrigger className="rounded-xl border-border/50">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {VOICE_OPTIONS.map((voice) => (
+                                <SelectItem key={voice.value} value={voice.value}>
+                                  {voice.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            The AI voice used for responses
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Language</Label>
+                          <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                            <SelectTrigger className="rounded-xl border-border/50">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LANGUAGE_OPTIONS.map((lang) => (
+                                <SelectItem key={lang.value} value={lang.value}>
+                                  {lang.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            The language for voice interactions
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
 
             {/* Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -850,24 +1021,104 @@ const BotDetails = () => {
               <div>
                 <Card className="border-border/50 h-full">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-primary" />
-                      Chat History
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="w-5 h-5 text-primary" />
+                        Chat History & Leads
+                        {leads.length > 0 && (
+                          <Badge variant="secondary" className="ml-2">
+                            {leads.length}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate("/leads")}
+                        className="rounded-full"
+                      >
+                        <ExternalLinkIcon className="w-4 h-4 mr-2" />
+                        View All Leads
+                      </Button>
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Recent conversation sessions
+                      Recent conversation sessions and captured leads
                     </p>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-col items-center justify-center py-16">
-                      <MessageSquare className="w-16 h-16 text-muted-foreground/30 mb-4" />
-                      <p className="text-lg font-medium text-muted-foreground mb-1">
-                        Chat history coming soon
-                      </p>
-                      <p className="text-sm text-muted-foreground/70 text-center max-w-xs">
-                        View conversation sessions and messages with your customers
-                      </p>
-                    </div>
+                    {loadingLeads ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      </div>
+                    ) : leads.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <MessageSquare className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                        <p className="text-sm font-medium text-muted-foreground mb-1">
+                          No conversations yet
+                        </p>
+                        <p className="text-xs text-muted-foreground/70 text-center max-w-xs">
+                          Conversation sessions will appear here when customers interact with your bot
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {leads.map((lead) => {
+                          const fullName = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Unknown User";
+                          const initials = (lead.firstName?.charAt(0) || "") + (lead.lastName?.charAt(0) || "") || "?";
+
+                          return (
+                            <div
+                              key={lead.leadId || lead.sessionId}
+                              className="p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
+                                    {initials}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">
+                                      {fullName}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {lead.email && (
+                                        <span className="truncate max-w-[120px]">{lead.email}</span>
+                                      )}
+                                      {lead.sessionId && (
+                                        <span className="font-mono text-[10px] truncate max-w-[80px]" title={lead.sessionId}>
+                                          #{lead.sessionId.substring(0, 8)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                                      {new Date(lead.createdAt).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => navigate("/leads", {
+                                    state: {
+                                      highlightLeadId: lead.leadId,
+                                      highlightSessionId: lead.sessionId
+                                    }
+                                  })}
+                                  className="rounded-full text-xs h-7 px-2"
+                                >
+                                  Know More
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -876,7 +1127,7 @@ const BotDetails = () => {
         </main>
       </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Document Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -895,6 +1146,38 @@ const BotDetails = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Bot Confirmation Dialog */}
+      <AlertDialog open={botDeleteDialogOpen} onOpenChange={setBotDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Bot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{bot?.agentName}"? This action cannot be undone.
+              All associated data, documents, and conversation history will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingBot}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteBot}
+              disabled={isDeletingBot}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingBot ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Bot"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

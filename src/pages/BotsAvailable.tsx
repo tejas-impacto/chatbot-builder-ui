@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Bot, MessageSquare, Calendar, Loader2, RefreshCw, Play, Pencil, Trash2, LogIn, Mic } from "lucide-react";
+import { Bot, MessageSquare, Calendar, Loader2, RefreshCw, Play, Settings, Trash2, LogIn, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
-import { getBotsByTenant, deleteBot, type Bot as BotType } from "@/lib/botApi";
+import { getBotsByTenant, deleteBot, updateBot, type Bot as BotType } from "@/lib/botApi";
 import { SessionExpiredError, logout } from "@/lib/auth";
 import {
   AlertDialog,
@@ -32,21 +32,32 @@ const BotsAvailable = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [botToDelete, setBotToDelete] = useState<BotType | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingBotId, setTogglingBotId] = useState<string | null>(null);
 
-  // Determine if we're viewing voicebots or chatbots based on route
-  const isVoicebotView = location.pathname.includes('/manage-voicebot');
+  // Determine view type based on route
+  const getViewType = (): 'all' | 'voice' | 'chat' => {
+    if (location.pathname.includes('/manage-agents/voice') || location.pathname.includes('/manage-voicebot')) {
+      return 'voice';
+    } else if (location.pathname.includes('/manage-agents/chat') || location.pathname.includes('/manage-chatbot')) {
+      return 'chat';
+    }
+    return 'all';
+  };
+
+  const viewType = getViewType();
 
   // Filter bots based on the current view
   const filteredBots = useMemo(() => {
     return bots.filter(bot => {
-      if (isVoicebotView) {
+      if (viewType === 'voice') {
         return bot.channelType === 'VOICE';
-      } else {
-        // Show TEXT, CHAT, or bots without channelType (legacy) in chatbot view
+      } else if (viewType === 'chat') {
         return bot.channelType !== 'VOICE';
       }
+      // 'all' - show all bots
+      return true;
     });
-  }, [bots, isVoicebotView]);
+  }, [bots, viewType]);
 
   const fetchBots = async () => {
     const tenantId = localStorage.getItem('tenantId');
@@ -104,8 +115,9 @@ const BotsAvailable = () => {
   };
 
   const handleBotClick = (bot: BotType) => {
-    // Navigate to bot details page based on channel type
-    const basePath = bot.channelType === 'VOICE' ? '/manage-voicebot' : '/manage-chatbot';
+    // Navigate to bot details page - use /manage-agents for unified view
+    const basePath = location.pathname.includes('/manage-agents') ? '/manage-agents' :
+      (bot.channelType === 'VOICE' ? '/manage-voicebot' : '/manage-chatbot');
     navigate(`${basePath}/bot/${bot.botId}`, {
       state: { bot },
     });
@@ -139,7 +151,8 @@ const BotsAvailable = () => {
   };
 
   const handleEditBot = (bot: BotType) => {
-    const basePath = bot.channelType === 'VOICE' ? '/manage-voicebot' : '/manage-chatbot';
+    const basePath = location.pathname.includes('/manage-agents') ? '/manage-agents' :
+      (bot.channelType === 'VOICE' ? '/manage-voicebot' : '/manage-chatbot');
     navigate(`${basePath}/bot/${bot.botId}/edit`);
   };
 
@@ -175,6 +188,52 @@ const BotsAvailable = () => {
     }
   };
 
+  const handleToggleActive = async (bot: BotType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const tenantId = localStorage.getItem('tenantId');
+    if (!tenantId) return;
+
+    setTogglingBotId(bot.botId);
+    try {
+      await updateBot(bot.botId, {
+        tenantId,
+        conversationStyle: {
+          chatLength: bot.chatLength || 'medium',
+          chatGuidelines: bot.chatGuidelines || '',
+          voiceLength: bot.voiceLength || 'medium',
+          voiceGuidelines: bot.voiceGuidelines || '',
+        },
+        channelType: bot.channelType || 'TEXT',
+        purposeCategory: bot.purposeCategory || '',
+        persona: bot.persona || '',
+        agentName: bot.agentName,
+        toneOfVoice: bot.toneOfVoice || 'professional',
+        isActive: !bot.active,
+      });
+
+      // Update local state
+      setBots(prevBots =>
+        prevBots.map(b =>
+          b.botId === bot.botId ? { ...b, active: !b.active } : b
+        )
+      );
+
+      toast({
+        title: bot.active ? "Bot Deactivated" : "Bot Activated",
+        description: `${bot.agentName} is now ${bot.active ? 'inactive' : 'active'}.`,
+      });
+    } catch (err) {
+      console.error('Failed to toggle bot status:', err);
+      toast({
+        title: "Error",
+        description: "Failed to update bot status. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingBotId(null);
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-muted/30 via-background to-primary/5">
@@ -188,12 +247,14 @@ const BotsAvailable = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-foreground">
-                  {isVoicebotView ? 'Voicebots Available' : 'Chatbots Available'}
+                  {viewType === 'voice' ? 'Voice Agents' : viewType === 'chat' ? 'Chat Agents' : 'Manage Agents'}
                 </h1>
                 <p className="text-muted-foreground">
-                  {isVoicebotView
+                  {viewType === 'voice'
                     ? 'Manage and interact with your voice assistants'
-                    : 'Manage and interact with your chatbots'}
+                    : viewType === 'chat'
+                    ? 'Manage and interact with your chatbots'
+                    : 'Manage all your AI agents in one place'}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -210,8 +271,8 @@ const BotsAvailable = () => {
                   onClick={() => navigate('/bot-creation')}
                   className="rounded-full"
                 >
-                  {isVoicebotView ? <Mic className="w-4 h-4 mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
-                  {isVoicebotView ? 'Create New Voicebot' : 'Create New Chatbot'}
+                  <Bot className="w-4 h-4 mr-2" />
+                  Create New Agent
                 </Button>
               </div>
             </div>
@@ -257,19 +318,21 @@ const BotsAvailable = () => {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
                   <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    {isVoicebotView ? <Mic className="w-10 h-10 text-primary" /> : <Bot className="w-10 h-10 text-primary" />}
+                    {viewType === 'voice' ? <Mic className="w-10 h-10 text-primary" /> : <Bot className="w-10 h-10 text-primary" />}
                   </div>
                   <h3 className="text-lg font-semibold text-foreground mb-2">
-                    {isVoicebotView ? 'No voicebots created yet' : 'No chatbots created yet'}
+                    {viewType === 'voice' ? 'No voice agents created yet' : viewType === 'chat' ? 'No chat agents created yet' : 'No agents created yet'}
                   </h3>
                   <p className="text-muted-foreground mb-6 max-w-sm">
-                    {isVoicebotView
+                    {viewType === 'voice'
                       ? 'Create your first voice assistant to start voice conversations with your customers.'
-                      : 'Create your first AI chatbot to start engaging with your customers.'}
+                      : viewType === 'chat'
+                      ? 'Create your first AI chatbot to start engaging with your customers.'
+                      : 'Create your first AI agent to start engaging with your customers.'}
                   </p>
                   <Button onClick={() => navigate('/bot-creation')} className="rounded-full">
-                    {isVoicebotView ? <Mic className="w-4 h-4 mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
-                    {isVoicebotView ? 'Create Your First Voicebot' : 'Create Your First Chatbot'}
+                    <Bot className="w-4 h-4 mr-2" />
+                    Create Your First Agent
                   </Button>
                 </div>
               </div>
@@ -311,8 +374,9 @@ const BotsAvailable = () => {
                               e.stopPropagation();
                               handleEditBot(bot);
                             }}
+                            title="Bot Settings"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Settings className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -328,14 +392,25 @@ const BotsAvailable = () => {
                         </div>
                       </div>
 
-                      {/* Status Badge */}
-                      <div className="mb-4">
-                        <Badge
-                          variant={bot.active ? "default" : "secondary"}
-                          className={bot.active ? "bg-green-500/10 text-green-600 hover:bg-green-500/20" : ""}
-                        >
-                          {bot.active ? 'Active' : 'Inactive'}
-                        </Badge>
+                      {/* Active Toggle */}
+                      <div className="mb-4 flex items-center gap-2">
+                        <Switch
+                          checked={bot.active}
+                          onCheckedChange={() => {}}
+                          onClick={(e) => handleToggleActive(bot, e)}
+                          disabled={togglingBotId === bot.botId}
+                          className="data-[state=checked]:bg-green-500"
+                        />
+                        <span className={`text-sm ${bot.active ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          {togglingBotId === bot.botId ? (
+                            <span className="flex items-center gap-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Updating...
+                            </span>
+                          ) : (
+                            bot.active ? 'Active' : 'Inactive'
+                          )}
+                        </span>
                       </div>
 
                       {/* Bot Details */}
