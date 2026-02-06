@@ -10,7 +10,6 @@ import {
   LogOut,
   ChevronDown,
   ChevronUp,
-  Network
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,6 +62,7 @@ const menuItems: MenuItem[] = [
       { title: "All Agents", url: "/manage-agents" },
       { title: "Chat Agents", url: "/manage-agents/chat" },
       { title: "Voice Agents", url: "/manage-agents/voice" },
+      { title: "Knowledge Graph", url: "/knowledge-graph" },
     ]
   },
   {
@@ -73,7 +73,6 @@ const menuItems: MenuItem[] = [
       { title: "Leads", url: "/leads" },
     ]
   },
-  { title: "Knowledge Graph", url: "/knowledge-graph", icon: Network },
 ];
 
 const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: DashboardSidebarProps) => {
@@ -146,24 +145,24 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
       <SidebarContent className="px-2 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-3">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {item.subItems ? (
-                    <Collapsible 
+                    <Collapsible
                       open={openMenus.includes(item.title) || isParentActive(item)}
                       onOpenChange={() => toggleMenu(item.title)}
                     >
                       <CollapsibleTrigger asChild>
-                        <SidebarMenuButton 
+                        <SidebarMenuButton
                           tooltip={item.title}
                           className={`rounded-xl transition-all duration-200 w-full ${
                             isParentActive(item)
-                              ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                              ? "bg-primary/10 text-primary font-semibold hover:bg-primary/15"
                               : "hover:bg-sidebar-accent"
                           }`}
                         >
-                          <div className="flex items-center gap-3 w-full px-3 py-2.5">
+                          <div className="flex items-center gap-3 w-full px-3 py-2">
                             <item.icon className="w-5 h-5 flex-shrink-0" />
                             {!collapsed && (
                               <>
@@ -180,15 +179,15 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         {!collapsed && (
-                          <div className="ml-6 mt-1 space-y-1 border-l-2 border-border pl-4">
+                          <div className="ml-7 mt-1 space-y-0.5 border-l-2 border-primary/20 pl-3">
                             {item.subItems.map((subItem) => (
                               <button
                                 key={subItem.title}
                                 onClick={() => navigate(subItem.url)}
-                                className={`block w-full text-left text-sm py-2 px-2 rounded-lg transition-colors ${
+                                className={`block w-full text-left text-sm py-1.5 px-2 rounded-lg transition-colors ${
                                   isActive(subItem.url)
-                                    ? "text-primary font-medium"
-                                    : "text-muted-foreground hover:text-foreground"
+                                    ? "bg-primary text-primary-foreground font-medium"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                                 }`}
                               >
                                 {subItem.title}
@@ -199,19 +198,19 @@ const DashboardSidebar = ({ requiresOnboarding = false, onBlockedAction }: Dashb
                       </CollapsibleContent>
                     </Collapsible>
                   ) : (
-                    <SidebarMenuButton 
+                    <SidebarMenuButton
                       asChild
                       isActive={isActive(item.url)}
                       tooltip={item.title}
                       className={`rounded-xl transition-all duration-200 ${
-                        isActive(item.url) 
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                        isActive(item.url)
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
                           : "hover:bg-sidebar-accent"
                       }`}
                     >
                       <button
                         onClick={() => navigate(item.url)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5"
+                        className="flex items-center gap-3 w-full px-3 py-2"
                       >
                         <item.icon className="w-5 h-5 flex-shrink-0" />
                         {!collapsed && (

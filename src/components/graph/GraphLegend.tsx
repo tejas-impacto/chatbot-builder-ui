@@ -4,10 +4,13 @@ interface GraphLegendProps {
   className?: string;
 }
 
-// Simple two-color legend
+// Monochromatic purple legend
 const LEGEND_ITEMS = [
-  { label: 'Organization / Bot', color: '#1E3A5F' },
-  { label: 'Related Entities', color: '#475569' },
+  { label: 'Organization / Tenant', color: '#1A0533' },
+  { label: 'Bot', color: '#3C1A6E' },
+  { label: 'Service / Category', color: '#5E35A0' },
+  { label: 'Product / Location', color: '#7E57C2' },
+  { label: 'Other', color: '#9575CD' },
 ];
 
 export const GraphLegend = ({ className }: GraphLegendProps) => {

@@ -49,30 +49,36 @@ export interface SelectedElement {
   data: GraphNode | GraphEdge;
 }
 
-// Node colors - Simple two-color scheme
+// Node colors - Monochromatic purple palette
 export const NODE_COLORS: Record<string, NodeTypeConfig> = {
-  // Primary color for main entities (Organizations, Bots, etc.)
-  Organization: { color: '#1E3A5F', label: 'Organization' },  // Dark blue
-  Bot: { color: '#1E3A5F', label: 'Bot' },
-  Tenant: { color: '#1E3A5F', label: 'Tenant' },
+  // Darkest purple - core entities
+  Organization: { color: '#1A0533', label: 'Organization' },
+  Tenant: { color: '#1A0533', label: 'Tenant' },
 
-  // Secondary color for related entities (Products, Services, Locations, etc.)
-  Product: { color: '#475569', label: 'Product' },            // Slate gray
-  Location: { color: '#475569', label: 'Location' },
-  Service: { color: '#475569', label: 'Service' },
-  Person: { color: '#475569', label: 'Person' },
-  Category: { color: '#475569', label: 'Category' },
-  Entity: { color: '#475569', label: 'Entity' },
-  Concept: { color: '#475569', label: 'Concept' },
-  default: { color: '#475569', label: 'Other' },
+  // Dark purple - bots
+  Bot: { color: '#3C1A6E', label: 'Bot' },
+
+  // Medium purple - services
+  Service: { color: '#5E35A0', label: 'Service' },
+  Category: { color: '#5E35A0', label: 'Category' },
+
+  // Medium-light purple - products & locations
+  Product: { color: '#7E57C2', label: 'Product' },
+  Location: { color: '#7E57C2', label: 'Location' },
+
+  // Light purple - other entities
+  Person: { color: '#9575CD', label: 'Person' },
+  Entity: { color: '#9575CD', label: 'Entity' },
+  Concept: { color: '#9575CD', label: 'Concept' },
+  default: { color: '#9575CD', label: 'Other' },
 };
 
-// Graph theme constants - Clean, light theme
+// Graph theme constants - Purple-tinted theme
 export const GRAPH_THEME = {
   background: '#FFFFFF',
-  edgeColor: '#64748B',
-  edgeHighlight: '#6366F1',
-  nodeHighlight: '#4F46E5',
-  fontColor: '#000000',
-  fontColorLight: '#000000',
+  edgeColor: '#7C6FAB',
+  edgeHighlight: '#9C27B0',
+  nodeHighlight: '#9C27B0',
+  fontColor: '#2D1B4E',
+  fontColorLight: '#FFFFFF',
 };

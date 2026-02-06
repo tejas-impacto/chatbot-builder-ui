@@ -96,7 +96,7 @@ export const KnowledgeGraphCanvas = ({
         color: GRAPH_THEME.fontColor,
         size: 10,
         face: 'Inter, sans-serif',
-        strokeWidth: 2,
+        strokeWidth: 3,
         strokeColor: '#FFFFFF',
         align: 'horizontal',
         // Position labels above or below the line, not on it
@@ -248,11 +248,19 @@ export const KnowledgeGraphCanvas = ({
 
     network.on('stabilizationIterationsDone', () => {
       setIsStabilizing(false);
-      // Keep physics enabled but with lower settings for smooth interaction
+      // Keep physics enabled with gentle settings for Neo4j-like interaction
       network.setOptions({
         physics: {
-          enabled: false
-        }
+          enabled: true,
+          solver: 'forceAtlas2Based',
+          forceAtlas2Based: {
+            gravitationalConstant: -40,
+            centralGravity: 0.001,
+            springLength: 200,
+            springConstant: 0.04,
+            damping: 0.9,
+          },
+        },
       });
       // Fit to screen after stabilization
       network.fit({
@@ -263,8 +271,11 @@ export const KnowledgeGraphCanvas = ({
       });
     });
 
-    network.on('dragStart', () => {
-      network.setOptions({ physics: { enabled: false } });
+    // Neo4j-like dragging: pin node at its new position after drag
+    network.on('dragEnd', (params) => {
+      if (params.nodes.length > 0) {
+        nodesDataSet.update({ id: params.nodes[0], fixed: { x: true, y: true } });
+      }
     });
 
     // Cleanup

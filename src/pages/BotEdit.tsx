@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Bot, ArrowLeft, Loader2, Save } from "lucide-react";
+import { Bot, ArrowLeft, Loader2, Save, Upload, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { getBotById, updateBot, type Bot as BotType } from "@/lib/botApi";
+import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
 
 const BotEdit = () => {
   const { botId } = useParams<{ botId: string }>();
@@ -41,6 +42,10 @@ const BotEdit = () => {
   const [voiceGuidelines, setVoiceGuidelines] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [tenantId, setTenantId] = useState("");
+  const [selectedVoice, setSelectedVoice] = useState("alloy");
+  const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const [voiceCloneFile, setVoiceCloneFile] = useState<File | null>(null);
+  const voiceCloneInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchBot = async () => {
@@ -76,6 +81,14 @@ const BotEdit = () => {
           setVoiceLength(bot.voiceLength || "");
           setVoiceGuidelines(bot.voiceGuidelines || "");
           setIsActive(bot.active);
+
+          // Load voice/language settings from localStorage for voice bots
+          if (bot.channelType === "VOICE" && botId) {
+            const savedVoice = localStorage.getItem(`voice_settings_${botId}_voice`);
+            const savedLanguage = localStorage.getItem(`voice_settings_${botId}_language`);
+            if (savedVoice) setSelectedVoice(savedVoice);
+            if (savedLanguage) setSelectedLanguage(savedLanguage);
+          }
         }
       } catch (err) {
         console.error("Error fetching bot:", err);
@@ -113,6 +126,12 @@ const BotEdit = () => {
         toneOfVoice,
         isActive,
       });
+
+      // Save voice/language settings to localStorage for voice bots
+      if (channelType === "VOICE" && botId) {
+        localStorage.setItem(`voice_settings_${botId}_voice`, selectedVoice);
+        localStorage.setItem(`voice_settings_${botId}_language`, selectedLanguage);
+      }
 
       toast({
         title: "Success",
@@ -323,6 +342,109 @@ const BotEdit = () => {
                       <CardTitle className="text-lg">Voice Configuration</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="selectedVoice">Voice</Label>
+                        <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Select voice" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VOICE_OPTIONS.map((voice) => (
+                              <SelectItem key={voice.value} value={voice.value}>
+                                {voice.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          The AI voice used for responses
+                        </p>
+                      </div>
+
+                      {/* Voice Clone Upload */}
+                      <div className="space-y-2">
+                        <Label>Voice Clone</Label>
+                        <input
+                          ref={voiceCloneInputRef}
+                          type="file"
+                          accept="audio/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setVoiceCloneFile(file);
+                            }
+                          }}
+                        />
+                        {voiceCloneFile ? (
+                          <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/30">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <Upload className="w-4 h-4 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {voiceCloneFile.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(voiceCloneFile.size / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
+                              onClick={() => {
+                                setVoiceCloneFile(null);
+                                if (voiceCloneInputRef.current) {
+                                  voiceCloneInputRef.current.value = "";
+                                }
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => voiceCloneInputRef.current?.click()}
+                            className="w-full border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
+                          >
+                            <Upload className="w-5 h-5 text-muted-foreground mx-auto mb-1.5" />
+                            <p className="text-sm text-muted-foreground">
+                              Click to upload voice audio
+                            </p>
+                            <p className="text-xs text-muted-foreground/70 mt-0.5">
+                              MP3, WAV, or M4A
+                            </p>
+                          </button>
+                        )}
+                        <div className="flex items-start gap-1.5 mt-1">
+                          <Info className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-muted-foreground">
+                            Upload 5-10 seconds of clear speech for best voice cloning results. Avoid background noise.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="selectedLanguage">Language</Label>
+                        <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LANGUAGE_OPTIONS.map((lang) => (
+                              <SelectItem key={lang.value} value={lang.value}>
+                                {lang.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          The language for voice interactions
+                        </p>
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="voiceLength">Voice Response Length</Label>
                         <Select value={voiceLength} onValueChange={setVoiceLength}>

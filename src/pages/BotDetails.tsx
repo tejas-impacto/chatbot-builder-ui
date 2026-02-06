@@ -41,10 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { HelpCircle, ExternalLink, Volume2 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
+import { HelpCircle, ExternalLink } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -112,9 +109,6 @@ const BotDetails = () => {
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [botDeleteDialogOpen, setBotDeleteDialogOpen] = useState(false);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
-  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState("alloy");
-  const [selectedLanguage, setSelectedLanguage] = useState("en");
 
   const tenantId = localStorage.getItem("tenantId") || "";
   const isVoiceBot = bot?.channelType === "VOICE";
@@ -166,31 +160,6 @@ const BotDetails = () => {
     fetchQueries();
     fetchLeads();
   }, [botId]);
-
-  // Load voice settings from localStorage for this bot
-  useEffect(() => {
-    if (botId && isVoiceBot) {
-      const savedVoice = localStorage.getItem(`voice_settings_${botId}_voice`);
-      const savedLanguage = localStorage.getItem(`voice_settings_${botId}_language`);
-      if (savedVoice) setSelectedVoice(savedVoice);
-      if (savedLanguage) setSelectedLanguage(savedLanguage);
-    }
-  }, [botId, isVoiceBot]);
-
-  // Save voice settings to localStorage
-  const handleVoiceChange = (voice: string) => {
-    setSelectedVoice(voice);
-    if (botId) {
-      localStorage.setItem(`voice_settings_${botId}_voice`, voice);
-    }
-  };
-
-  const handleLanguageChange = (language: string) => {
-    setSelectedLanguage(language);
-    if (botId) {
-      localStorage.setItem(`voice_settings_${botId}_language`, language);
-    }
-  };
 
   // Fetch unresolved queries for this bot
   const fetchQueries = async () => {
@@ -521,12 +490,7 @@ const BotDetails = () => {
                   variant="outline"
                   size="icon"
                   onClick={() =>
-                    navigate("/bot-creation", {
-                      state: {
-                        editMode: true,
-                        botData: bot,
-                      },
-                    })
+                    navigate(`/manage-agents/bot/${botId}/edit`)
                   }
                   className="rounded-full"
                   title="Edit Bot Settings"
@@ -641,74 +605,6 @@ const BotDetails = () => {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Voice Settings Card - Only for Voice Bots */}
-            {isVoiceBot && (
-              <Collapsible open={voiceSettingsOpen} onOpenChange={setVoiceSettingsOpen}>
-                <Card className="border-border/50">
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Volume2 className="w-5 h-5 text-primary" />
-                          Voice Settings
-                        </CardTitle>
-                        {voiceSettingsOpen ? (
-                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Configure voice and language for this bot
-                      </p>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent className="pt-0">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Voice</Label>
-                          <Select value={selectedVoice} onValueChange={handleVoiceChange}>
-                            <SelectTrigger className="rounded-xl border-border/50">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {VOICE_OPTIONS.map((voice) => (
-                                <SelectItem key={voice.value} value={voice.value}>
-                                  {voice.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            The AI voice used for responses
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Language</Label>
-                          <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-                            <SelectTrigger className="rounded-xl border-border/50">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LANGUAGE_OPTIONS.map((lang) => (
-                                <SelectItem key={lang.value} value={lang.value}>
-                                  {lang.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            The language for voice interactions
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            )}
 
             {/* Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

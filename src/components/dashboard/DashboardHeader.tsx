@@ -22,8 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getValidAccessToken } from "@/lib/auth";
 import { getBotsByTenant, type Bot as BotType } from "@/lib/botApi";
+import { getLeadInteractions, type LeadInteraction } from "@/lib/botApi";
 
 // Navigation items for search
 interface NavItem {
@@ -140,6 +142,10 @@ const DashboardHeader = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Notifications state
+  const [recentLeads, setRecentLeads] = useState<LeadInteraction[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   useEffect(() => {
     const storedTenantId = localStorage.getItem('tenantId');
     setTenantId(storedTenantId);
@@ -168,7 +174,23 @@ const DashboardHeader = () => {
 
         // Fetch bots for search
         const botsResponse = await getBotsByTenant(storedTenantId);
-        setBots(botsResponse.responseStructure?.data || []);
+        const botsData = botsResponse.responseStructure?.data || [];
+        setBots(botsData);
+
+        // Fetch recent leads across all bots for notifications
+        const allLeads: LeadInteraction[] = [];
+        for (const bot of botsData.slice(0, 5)) {
+          try {
+            const leadsResponse = await getLeadInteractions(storedTenantId, bot.botId, 0, 5);
+            const leads = leadsResponse.data || [];
+            allLeads.push(...leads.map((l: LeadInteraction) => ({ ...l, botId: bot.botId, agentName: bot.agentName } as LeadInteraction & { agentName: string })));
+          } catch {
+            // Skip bots that fail
+          }
+        }
+        // Sort by most recent and take top 10
+        allLeads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setRecentLeads(allLeads.slice(0, 10));
       } catch (err) {
         console.error('Failed to fetch data:', err);
       }
@@ -263,6 +285,66 @@ const DashboardHeader = () => {
   // Group results by type
   const navResults = searchResults.filter((r) => r.type === "navigation");
   const botResults = searchResults.filter((r) => r.type === "bot");
+
+  // Build activity items for notifications
+  interface ActivityItem {
+    id: string;
+    type: "bot_created" | "new_lead";
+    title: string;
+    description: string;
+    time: string;
+    icon: "bot" | "lead";
+  }
+
+  const activityItems: ActivityItem[] = [];
+
+  // Add recent bot creations
+  bots
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+    .forEach((bot) => {
+      activityItems.push({
+        id: `bot-${bot.botId}`,
+        type: "bot_created",
+        title: `${bot.agentName}`,
+        description: `${bot.channelType === "VOICE" ? "Voice" : "Chat"} bot created`,
+        time: bot.createdAt,
+        icon: "bot",
+      });
+    });
+
+  // Add recent leads
+  recentLeads.forEach((lead) => {
+    const name = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Unknown User";
+    activityItems.push({
+      id: `lead-${lead.leadId || lead.sessionId}`,
+      type: "new_lead",
+      title: name,
+      description: lead.email ? `New lead: ${lead.email}` : "New conversation",
+      time: lead.createdAt,
+      icon: "lead",
+    });
+  });
+
+  // Sort all activity by time
+  activityItems.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  const displayActivities = activityItems.slice(0, 10);
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
 
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4">
@@ -383,10 +465,72 @@ const DashboardHeader = () => {
             )}
           </div>
 
-          <Button variant="ghost" size="icon" className="relative rounded-full">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-          </Button>
+          <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative rounded-full">
+                <Bell className="w-5 h-5" />
+                {displayActivities.length > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="px-4 py-3 border-b border-border">
+                <h3 className="font-semibold text-sm text-foreground">Recent Activity</h3>
+                <p className="text-xs text-muted-foreground">Latest updates across your bots</p>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {displayActivities.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <Bell className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No recent activity</p>
+                  </div>
+                ) : (
+                  <ul>
+                    {displayActivities.map((activity) => (
+                      <li
+                        key={activity.id}
+                        className="px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 cursor-pointer"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          if (activity.type === "new_lead") {
+                            navigate("/leads");
+                          } else {
+                            navigate("/manage-agents");
+                          }
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            activity.icon === "bot"
+                              ? "bg-primary/10"
+                              : "bg-green-500/10"
+                          }`}>
+                            {activity.icon === "bot" ? (
+                              <Bot className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Users className="w-4 h-4 text-green-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {activity.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {activity.description}
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                            {formatTimeAgo(activity.time)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <Button
             variant="ghost"
