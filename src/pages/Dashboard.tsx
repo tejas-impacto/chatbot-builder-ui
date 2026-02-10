@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { getDashboardMetrics, getBotsByTenant, type DashboardMetrics, type Bot as BotType } from "@/lib/botApi";
+import { getDashboardMetrics, getBotsByTenant, getRecentActivity, type DashboardMetrics, type Bot as BotType, type ActivityItem } from "@/lib/botApi";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -30,6 +30,8 @@ const Dashboard = () => {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [bots, setBots] = useState<BotType[]>([]);
   const [botsLoading, setBotsLoading] = useState(true);
+  const [recentActivityItems, setRecentActivityItems] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   useEffect(() => {
     // Check if onboarding was skipped and not completed
@@ -91,6 +93,50 @@ const Dashboard = () => {
     fetchBots();
   }, []);
 
+  // Fetch recent activity from /api/v1/activity
+  useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        const tenantId = localStorage.getItem('tenantId');
+        if (!tenantId) {
+          setActivityLoading(false);
+          return;
+        }
+
+        const response = await getRecentActivity(tenantId, 0, 10);
+        setRecentActivityItems(response.data || []);
+      } catch (error) {
+        console.error('Failed to fetch recent activity:', error);
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+
+    fetchActivity();
+  }, []);
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const formatActionType = (actionType: string) => {
+    return actionType
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
   // Handler to show popup when user tries to perform a blocked action
   const handleBlockedAction = () => {
     if (requiresOnboarding) {
@@ -136,12 +182,6 @@ const Dashboard = () => {
     { title: "Upload Data", icon: Upload, description: "Add training data" },
   ];
 
-  const recentActivity = [
-    { id: 1, action: "New conversation started", agent: "Support Bot", time: "2 mins ago" },
-    { id: 2, action: "Lead captured", agent: "Sales Agent", time: "15 mins ago" },
-    { id: 3, action: "Training completed", agent: "FAQ Bot", time: "1 hour ago" },
-    { id: 4, action: "Agent updated", agent: "Product Advisor", time: "3 hours ago" },
-  ];
 
 
   return (
@@ -266,18 +306,40 @@ const Dashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {recentActivity.map((activity) => (
-                    <div 
-                      key={activity.id} 
-                      className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">{activity.agent}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{activity.time}</span>
+                  {activityLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
                     </div>
-                  ))}
+                  ) : recentActivityItems.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Zap className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No recent activity</p>
+                    </div>
+                  ) : (
+                    recentActivityItems.map((activity) => (
+                      <div
+                        key={activity.id}
+                        className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          if (activity.entityType === 'LEAD') {
+                            navigate('/leads', { state: { highlightLeadId: activity.entityId } });
+                          } else if (activity.entityType === 'BOT') {
+                            navigate(`/manage-agents/bot/${activity.entityId}`, {
+                              state: { bot: bots.find(b => b.botId === activity.entityId) },
+                            });
+                          } else if (activity.entityType === 'SESSION') {
+                            navigate('/leads', { state: { highlightSessionId: activity.entityId } });
+                          }
+                        }}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{formatActionType(activity.actionType)}</p>
+                          <p className="text-xs text-muted-foreground">{activity.entityName || activity.entityType}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">{formatTimeAgo(activity.createdAt)}</span>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
 
@@ -351,14 +413,9 @@ const Dashboard = () => {
                                 {bot.channelType === 'VOICE' ? 'Voice' : 'Chat'}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-3 mt-1">
-                              {bot.toneOfVoice && (
-                                <span className="text-xs text-muted-foreground">Tone: {bot.toneOfVoice}</span>
-                              )}
-                              {bot.purposeCategory && (
-                                <span className="text-xs text-muted-foreground">Purpose: {bot.purposeCategory}</span>
-                              )}
-                            </div>
+                            {bot.purposeCategory && (
+                              <p className="text-xs text-muted-foreground mt-1">Purpose: {bot.purposeCategory}</p>
+                            )}
                           </div>
                         </div>
                         <Button variant="ghost" size="icon" className="rounded-full">

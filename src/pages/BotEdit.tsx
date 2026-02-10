@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Bot, ArrowLeft, Loader2, Save, Upload, Info, X } from "lucide-react";
+import { Bot, ArrowLeft, Loader2, Save, Upload, Info, X, Play, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,17 @@ import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
-import { getBotById, updateBot, type Bot as BotType } from "@/lib/botApi";
+import { getBotById, updateBot, deleteBot, type Bot as BotType } from "@/lib/botApi";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { VOICE_OPTIONS, LANGUAGE_OPTIONS } from "@/types/voice";
 
 const BotEdit = () => {
@@ -29,6 +39,8 @@ const BotEdit = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [agentName, setAgentName] = useState("");
@@ -45,7 +57,37 @@ const BotEdit = () => {
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [voiceCloneFile, setVoiceCloneFile] = useState<File | null>(null);
+  const [isPlayingClone, setIsPlayingClone] = useState(false);
   const voiceCloneInputRef = useRef<HTMLInputElement>(null);
+  const cloneAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayClone = () => {
+    if (!voiceCloneFile) return;
+
+    if (isPlayingClone && cloneAudioRef.current) {
+      cloneAudioRef.current.pause();
+      cloneAudioRef.current.currentTime = 0;
+      setIsPlayingClone(false);
+      return;
+    }
+
+    const url = URL.createObjectURL(voiceCloneFile);
+    const audio = new Audio(url);
+    cloneAudioRef.current = audio;
+
+    audio.onended = () => {
+      setIsPlayingClone(false);
+      URL.revokeObjectURL(url);
+    };
+    audio.onerror = () => {
+      setIsPlayingClone(false);
+      URL.revokeObjectURL(url);
+      toast({ title: "Playback error", description: "Could not play the audio file.", variant: "destructive" });
+    };
+
+    audio.play();
+    setIsPlayingClone(true);
+  };
 
   useEffect(() => {
     const fetchBot = async () => {
@@ -155,6 +197,31 @@ const BotEdit = () => {
 
   const handleCancel = () => {
     navigate(-1);
+  };
+
+  const handleDeleteBot = async () => {
+    if (!botId || !tenantId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteBot(botId, tenantId);
+      toast({
+        title: "Bot Deleted",
+        description: `${agentName} has been permanently deleted.`,
+      });
+      const basePath = channelType === "VOICE" ? "/manage-voicebot" : "/manage-chatbot";
+      navigate(`${basePath}/bots`);
+    } catch (err) {
+      console.error("Failed to delete bot:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete bot. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+    }
   };
 
   return (
@@ -377,30 +444,56 @@ const BotEdit = () => {
                           }}
                         />
                         {voiceCloneFile ? (
-                          <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/30">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              <Upload className="w-4 h-4 text-primary" />
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/30">
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                <Upload className="w-4 h-4 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">
+                                  {voiceCloneFile.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(voiceCloneFile.size / 1024).toFixed(1)} KB
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                  if (cloneAudioRef.current) {
+                                    cloneAudioRef.current.pause();
+                                    cloneAudioRef.current = null;
+                                  }
+                                  setIsPlayingClone(false);
+                                  setVoiceCloneFile(null);
+                                  if (voiceCloneInputRef.current) {
+                                    voiceCloneInputRef.current.value = "";
+                                  }
+                                }}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">
-                                {voiceCloneFile.name}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {(voiceCloneFile.size / 1024).toFixed(1)} KB
-                              </p>
-                            </div>
+                            {/* Play cloned voice preview */}
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
-                              onClick={() => {
-                                setVoiceCloneFile(null);
-                                if (voiceCloneInputRef.current) {
-                                  voiceCloneInputRef.current.value = "";
-                                }
-                              }}
+                              variant="outline"
+                              size="sm"
+                              onClick={handlePlayClone}
+                              className="w-full rounded-xl gap-2"
                             >
-                              <X className="w-4 h-4" />
+                              {isPlayingClone ? (
+                                <>
+                                  <Square className="w-3.5 h-3.5 fill-current" />
+                                  Stop Preview
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  Play Cloned Voice
+                                </>
+                              )}
                             </Button>
                           </div>
                         ) : (
@@ -477,37 +570,77 @@ const BotEdit = () => {
 
             {/* Action Buttons */}
             {!loading && !error && (
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex items-center justify-between pt-4">
                 <Button
                   variant="outline"
-                  onClick={handleCancel}
-                  className="rounded-full"
-                  disabled={saving}
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                  disabled={saving || isDeleting}
                 >
-                  Cancel
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Bot
                 </Button>
-                <Button
-                  onClick={handleSave}
-                  className="rounded-full"
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Update Bot
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleCancel}
+                    className="rounded-full"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    className="rounded-full"
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Update Bot
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         </main>
       </div>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Bot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{agentName}"? This action cannot be undone.
+              All associated data and conversation history will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteBot}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Bot"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 };

@@ -20,7 +20,7 @@ const capitalize = (str: string): string => {
 
 export interface BotCreationData {
   // Bot Type Selection
-  botType: "chat" | "voice";
+  botType: "chat" | "voice" | "both";
 
   // Step 1: Knowledge Base
   companyOverview: string;
@@ -148,7 +148,7 @@ const BotCreation = () => {
   };
 
   // Upload documents using multipart/form-data
-  const uploadDocuments = async (files: File[], tenantId: string, botId: string, accessToken: string, botType: "chat" | "voice"): Promise<{ success: boolean; error?: string }> => {
+  const uploadDocuments = async (files: File[], tenantId: string, botId: string, accessToken: string, botType: "chat" | "voice" | "both"): Promise<{ success: boolean; error?: string }> => {
     try {
       const formData = new FormData();
 
@@ -190,6 +190,42 @@ const BotCreation = () => {
     }
   };
 
+  const createSingleBot = async (tenantId: string, accessToken: string, channelType: 'TEXT' | 'VOICE') => {
+    const createBotPayload: CreateBotRequest = {
+      tenantId,
+      conversationStyle: {
+        chatLength: formData.chatResponseLength || 'medium',
+        chatGuidelines: formData.chatGuidelines || '',
+        voiceLength: formData.voiceResponseLength || 'medium',
+        voiceGuidelines: formData.voiceGuidelines || '',
+      },
+      channelType,
+      purposeCategory: formData.purpose || '',
+      persona: formData.persona || '',
+      agentName: formData.agentName || 'My Chatbot',
+      toneOfVoice: formData.voiceTone || 'friendly',
+    };
+
+    const createBotResponse = await createBot(createBotPayload);
+    const botId = createBotResponse.responseStructure.data.bot_id;
+    console.log(`${channelType} bot created with ID:`, botId);
+
+    // Upload documents
+    if (formData.files.length > 0) {
+      const result = await uploadDocuments(formData.files, tenantId, botId, accessToken, formData.botType);
+      if (!result.success) {
+        console.error(`Upload failed for ${channelType} bot:`, result.error);
+      }
+    }
+
+    // Initialize creation session
+    const initResponse = await initBotCreationSession(botId);
+    const { ticket, session_id } = initResponse.responseStructure.data;
+    console.log(`${channelType} bot creation session initialized:`, { ticket, session_id });
+
+    return { botId, ticket, session_id };
+  };
+
   const handleSubmit = async () => {
     setIsCreating(true);
     console.log("Bot Creation Data:", formData);
@@ -207,83 +243,80 @@ const BotCreation = () => {
         throw new Error('No tenant ID found. Please complete onboarding first.');
       }
 
-      // Step 1: Create Bot with form data
-      setUploadProgress("Creating bot...");
-
-      const createBotPayload: CreateBotRequest = {
-        tenantId,
-        conversationStyle: {
-          chatLength: formData.chatResponseLength || 'medium',
-          chatGuidelines: formData.chatGuidelines || '',
-          voiceLength: formData.voiceResponseLength || 'medium',
-          voiceGuidelines: formData.voiceGuidelines || '',
+      const botConfig = {
+        company_overview: formData.companyOverview || '',
+        product_features: formData.productFeatures || '',
+        customer_faqs: formData.commonFaqs || '',
+        conversation_style: {
+          chat_length: capitalize(formData.chatResponseLength) || 'Medium',
+          chat_guidelines: formData.chatGuidelines || '',
+          voice_length: capitalize(formData.voiceResponseLength) || 'Medium',
+          voice_guidelines: formData.voiceGuidelines || '',
         },
-        channelType: formData.botType === 'voice' ? 'VOICE' : 'TEXT',
-        purposeCategory: formData.purpose || '',
+        purpose_category: formData.purpose || '',
         persona: formData.persona || '',
-        agentName: formData.agentName || 'My Chatbot',
-        toneOfVoice: formData.voiceTone || 'friendly',
+        tone_of_voice: formData.voiceTone || 'friendly',
+        agent_name: formData.agentName || 'My Chatbot',
       };
 
-      const createBotResponse = await createBot(createBotPayload);
-      const botId = createBotResponse.responseStructure.data.bot_id;
-      console.log("Bot created with ID:", botId);
+      if (formData.botType === 'both') {
+        // Create Chat Bot
+        setUploadProgress("Creating chat bot...");
+        const chatBot = await createSingleBot(tenantId, accessToken, 'TEXT');
 
-      // Step 2: Upload Documents (with botId)
-      if (formData.files.length > 0) {
-        setUploadProgress(`Uploading ${formData.files.length} document(s)...`);
+        // Create Voice Bot
+        setUploadProgress("Creating voice bot...");
+        const voiceBot = await createSingleBot(tenantId, accessToken, 'VOICE');
 
-        const result = await uploadDocuments(formData.files, tenantId, botId, accessToken, formData.botType);
+        if (formData.files.length > 0) {
+          toast({
+            title: "Documents Uploaded",
+            description: `Uploaded ${formData.files.length} document(s) to both bots.`,
+          });
+        }
 
-        if (result.success) {
+        toast({
+          title: "Voice Bot Created",
+          description: `Voice bot "${formData.agentName}" is also being set up.`,
+        });
+
+        // Navigate to progress page for the chat bot
+        navigate("/bot-creation-progress", {
+          state: {
+            botId: chatBot.botId,
+            ticket: chatBot.ticket,
+            sessionId: chatBot.session_id,
+            agentName: formData.agentName || "AI Agent",
+            tenantId,
+            documentsUploaded: formData.files.length,
+            botConfig: { ...botConfig, channelType: 'TEXT' },
+          },
+        });
+      } else {
+        // Single bot creation
+        const channelType = formData.botType === 'voice' ? 'VOICE' : 'TEXT';
+        setUploadProgress("Creating bot...");
+        const bot = await createSingleBot(tenantId, accessToken, channelType);
+
+        if (formData.files.length > 0) {
           toast({
             title: "Documents Uploaded",
             description: `Successfully uploaded ${formData.files.length} document(s).`,
           });
-        } else {
-          toast({
-            title: "Upload failed",
-            description: result.error || "Failed to upload documents",
-            variant: "destructive",
-          });
-          console.error('Upload failed:', result.error);
         }
-      }
 
-      // Step 3: Initialize Bot Creation Session
-      setUploadProgress("Initializing bot creation session...");
-      const initResponse = await initBotCreationSession(botId);
-      const { ticket, session_id } = initResponse.responseStructure.data;
-      console.log("Bot creation session initialized:", { ticket, session_id });
-
-      // Step 4: Navigate to progress page with WebSocket connection info and bot config
-      navigate("/bot-creation-progress", {
-        state: {
-          botId,
-          ticket,
-          sessionId: session_id,
-          agentName: formData.agentName || "AI Agent",
-          tenantId,
-          documentsUploaded: formData.files.length,
-          // Include knowledge base data for WebSocket bot_config (snake_case format)
-          // Note: chat_length and voice_length must be capitalized: 'Short', 'Medium', or 'Long'
-          botConfig: {
-            company_overview: formData.companyOverview || '',
-            product_features: formData.productFeatures || '',
-            customer_faqs: formData.commonFaqs || '',
-            conversation_style: {
-              chat_length: capitalize(formData.chatResponseLength) || 'Medium',
-              chat_guidelines: formData.chatGuidelines || '',
-              voice_length: capitalize(formData.voiceResponseLength) || 'Medium',
-              voice_guidelines: formData.voiceGuidelines || '',
-            },
-            purpose_category: formData.purpose || '',
-            persona: formData.persona || '',
-            tone_of_voice: formData.voiceTone || 'friendly',
-            agent_name: formData.agentName || 'My Chatbot',
+        navigate("/bot-creation-progress", {
+          state: {
+            botId: bot.botId,
+            ticket: bot.ticket,
+            sessionId: bot.session_id,
+            agentName: formData.agentName || "AI Agent",
+            tenantId,
+            documentsUploaded: formData.files.length,
+            botConfig,
           },
-        },
-      });
+        });
+      }
     } catch (error) {
       // Handle session expiration gracefully
       if (error instanceof SessionExpiredError) {
@@ -401,7 +434,7 @@ const BotCreation = () => {
               <label className="block text-sm font-medium text-foreground mb-3">
                 Select Bot Type
               </label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <button
                   type="button"
                   onClick={() => updateFormData({ botType: "chat" })}
@@ -428,7 +461,7 @@ const BotCreation = () => {
                   <p className={`text-xs ${
                     formData.botType === "chat" ? "text-primary/80" : "text-muted-foreground"
                   }`}>
-                    Text-based conversations for customer support and engagement
+                    Text-based conversations for support and engagement
                   </p>
                 </button>
 
@@ -458,7 +491,42 @@ const BotCreation = () => {
                   <p className={`text-xs ${
                     formData.botType === "voice" ? "text-primary/80" : "text-muted-foreground"
                   }`}>
-                    Voice-enabled assistant for phone support and voice interactions
+                    Voice assistant for phone support and interactions
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateFormData({ botType: "both" })}
+                  className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                    formData.botType === "both"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-input hover:border-primary/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      formData.botType === "both" ? "bg-primary/20" : "bg-muted"
+                    }`}>
+                      <div className="flex -space-x-1">
+                        <Bot className={`w-4 h-4 ${
+                          formData.botType === "both" ? "text-primary" : "text-muted-foreground"
+                        }`} />
+                        <Mic className={`w-4 h-4 ${
+                          formData.botType === "both" ? "text-primary" : "text-muted-foreground"
+                        }`} />
+                      </div>
+                    </div>
+                    <span className={`font-semibold ${
+                      formData.botType === "both" ? "text-primary" : "text-foreground"
+                    }`}>
+                      Both
+                    </span>
+                  </div>
+                  <p className={`text-xs ${
+                    formData.botType === "both" ? "text-primary/80" : "text-muted-foreground"
+                  }`}>
+                    Create both chat and voice bots with shared config
                   </p>
                 </button>
               </div>
@@ -498,7 +566,7 @@ const BotCreation = () => {
                   {uploadProgress || "Creating..."}
                 </>
               ) : (
-                currentStep === steps.length ? "Create Bot" : "Continue"
+                currentStep === steps.length ? (formData.botType === "both" ? "Create Bots" : "Create Bot") : "Continue"
               )}
             </Button>
           </div>

@@ -13,7 +13,6 @@ import {
   Calendar,
   Upload,
   Eye,
-  Trash2,
   Loader2,
   File,
   ChevronDown,
@@ -31,7 +30,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken } from "@/lib/auth";
 import type { Bot as BotType } from "@/lib/botApi";
-import { getUnresolvedQueries, submitQueryAnswers, getLeadInteractions, deleteBot, type UnresolvedQuery, type LeadInteraction } from "@/lib/botApi";
+import { getUnresolvedQueries, submitQueryAnswers, getLeadInteractions, extractLeadInteractions, type UnresolvedQuery, type LeadInteraction } from "@/lib/botApi";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -41,22 +40,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { HelpCircle, ExternalLink } from "lucide-react";
+import { HelpCircle, ExternalLink, MessageCircle } from "lucide-react";
+import { getChatHistory, type ChatHistoryMessage } from "@/lib/chatApi";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 interface LocationState {
   bot?: BotType;
@@ -95,8 +85,6 @@ const BotDetails = () => {
   const [endpointsOpen, setEndpointsOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [widgetOpen, setWidgetOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<ApiDocument | null>(null);
   const [queriesOpen, setQueriesOpen] = useState(false);
   const [queries, setQueries] = useState<UnresolvedQuery[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
@@ -107,8 +95,11 @@ const BotDetails = () => {
   const [totalQueries, setTotalQueries] = useState(0);
   const [leads, setLeads] = useState<LeadInteraction[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
-  const [botDeleteDialogOpen, setBotDeleteDialogOpen] = useState(false);
-  const [isDeletingBot, setIsDeletingBot] = useState(false);
+  const [conversationDialogOpen, setConversationDialogOpen] = useState(false);
+  const [conversationMessages, setConversationMessages] = useState<ChatHistoryMessage[]>([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationLead, setConversationLead] = useState<LeadInteraction | null>(null);
+  const [conversationSummary, setConversationSummary] = useState("");
 
   const tenantId = localStorage.getItem("tenantId") || "";
   const isVoiceBot = bot?.channelType === "VOICE";
@@ -185,7 +176,7 @@ const BotDetails = () => {
     try {
       setLoadingLeads(true);
       const response = await getLeadInteractions(tenantId, botId, 0, 10);
-      setLeads(response.data || []);
+      setLeads(extractLeadInteractions(response).data);
     } catch (error) {
       console.error("Error fetching leads:", error);
     } finally {
@@ -230,6 +221,32 @@ const BotDetails = () => {
       });
     } finally {
       setSubmittingAnswer(false);
+    }
+  };
+
+  const handleViewConversation = async (lead: LeadInteraction) => {
+    if (!lead.sessionId || !botId) return;
+
+    setConversationLead(lead);
+    setConversationMessages([]);
+    setConversationSummary("");
+    setConversationDialogOpen(true);
+    setConversationLoading(true);
+
+    try {
+      const response = await getChatHistory(lead.tenantId || tenantId, botId, lead.sessionId);
+      const data = response.responseStructure?.data;
+      setConversationMessages(data?.messages || []);
+      setConversationSummary(data?.summary || "");
+    } catch (err) {
+      console.error("Failed to load conversation:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation history.",
+        variant: "destructive",
+      });
+    } finally {
+      setConversationLoading(false);
     }
   };
 
@@ -323,68 +340,7 @@ const BotDetails = () => {
     }
   };
 
-  const handleDeleteClick = (doc: ApiDocument) => {
-    setDocumentToDelete(doc);
-    setDeleteDialogOpen(true);
-  };
 
-  const handleConfirmDelete = async () => {
-    if (!documentToDelete) return;
-
-    try {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken) throw new Error("No access token");
-
-      const response = await fetch(`/api-doc/v1/documents/${documentToDelete.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("Failed to delete document");
-
-      toast({
-        title: "Document Deleted",
-        description: "Document has been removed.",
-      });
-      fetchDocuments();
-    } catch (error) {
-      console.error("Error deleting document:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete document",
-        variant: "destructive",
-      });
-    } finally {
-      setDeleteDialogOpen(false);
-      setDocumentToDelete(null);
-    }
-  };
-
-  const handleDeleteBot = async () => {
-    if (!botId || !tenantId) return;
-
-    setIsDeletingBot(true);
-    try {
-      await deleteBot(botId, tenantId);
-      toast({
-        title: "Bot Deleted",
-        description: `${bot?.agentName} has been permanently deleted.`,
-      });
-      navigate("/manage-agents");
-    } catch (error) {
-      console.error("Failed to delete bot:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete bot. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeletingBot(false);
-      setBotDeleteDialogOpen(false);
-    }
-  };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Unknown";
@@ -496,15 +452,6 @@ const BotDetails = () => {
                   title="Edit Bot Settings"
                 >
                   <Settings className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setBotDeleteDialogOpen(true)}
-                  className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                  title="Delete Bot"
-                >
-                  <Trash2 className="w-4 h-4" />
                 </Button>
                 <Button
                   onClick={() =>
@@ -767,14 +714,6 @@ const BotDetails = () => {
                                   >
                                     <Eye className="w-3 h-3" />
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive hover:text-destructive"
-                                    onClick={() => handleDeleteClick(doc)}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
                                 </div>
                               </div>
                             ))}
@@ -996,19 +935,32 @@ const BotDetails = () => {
                                     </p>
                                   </div>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => navigate("/leads", {
-                                    state: {
-                                      highlightLeadId: lead.leadId,
-                                      highlightSessionId: lead.sessionId
-                                    }
-                                  })}
-                                  className="rounded-full text-xs h-7 px-2"
-                                >
-                                  Know More
-                                </Button>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {lead.sessionId && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleViewConversation(lead)}
+                                      className="rounded-full text-xs h-7 px-2 gap-1"
+                                    >
+                                      <MessageCircle className="w-3 h-3" />
+                                      Chat
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => navigate("/leads", {
+                                      state: {
+                                        highlightLeadId: lead.leadId,
+                                        highlightSessionId: lead.sessionId
+                                      }
+                                    })}
+                                    className="rounded-full text-xs h-7 px-2"
+                                  >
+                                    Know More
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           );
@@ -1023,61 +975,7 @@ const BotDetails = () => {
         </main>
       </div>
 
-      {/* Delete Document Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{documentToDelete?.originalFileName || documentToDelete?.fileName}".
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDocumentToDelete(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      {/* Delete Bot Confirmation Dialog */}
-      <AlertDialog open={botDeleteDialogOpen} onOpenChange={setBotDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Bot</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{bot?.agentName}"? This action cannot be undone.
-              All associated data, documents, and conversation history will be permanently removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingBot}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteBot}
-              disabled={isDeletingBot}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingBot ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete Bot"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Answer Query Dialog */}
       <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
@@ -1141,6 +1039,76 @@ const BotDetails = () => {
               ) : (
                 "Submit Answer"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Conversation Dialog */}
+      <Dialog open={conversationDialogOpen} onOpenChange={setConversationDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-primary" />
+              Conversation History
+            </DialogTitle>
+            <DialogDescription>
+              {conversationLead && (
+                <span>
+                  {`${conversationLead.firstName || ""} ${conversationLead.lastName || ""}`.trim() || "Unknown User"}
+                  {conversationLead.email && ` • ${conversationLead.email}`}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {conversationSummary && (
+            <div className="px-1 py-2 border-b border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Summary</p>
+              <p className="text-sm text-foreground">{conversationSummary}</p>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto space-y-3 py-3 min-h-[200px] max-h-[400px]">
+            {conversationLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading conversation...
+                </div>
+              </div>
+            ) : conversationMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <MessageSquare className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">No messages found for this session</p>
+              </div>
+            ) : (
+              conversationMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConversationDialogOpen(false)}
+              className="rounded-full"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,7 +16,7 @@ interface PersonaVoiceStepProps {
   data: BotCreationData;
   onChange: (data: Partial<BotCreationData>) => void;
   errors?: Record<string, string>;
-  botType: "chat" | "voice";
+  botType: "chat" | "voice" | "both";
 }
 
 const personaOptions = [
@@ -75,8 +75,8 @@ const PersonaVoiceStep = ({ data, onChange, errors, botType }: PersonaVoiceStepP
         )}
       </div>
 
-      {/* Tone of the voice - only for voice bots */}
-      {botType === "voice" && (
+      {/* Tone of the voice - for voice and both */}
+      {(botType === "voice" || botType === "both") && (
         <div className="space-y-3">
           <Label className="text-sm font-medium text-foreground">
             Tone of the voice

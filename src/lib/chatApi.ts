@@ -2,10 +2,79 @@ import { getValidAccessToken } from './auth';
 import type { UserInfo } from '@/types/chat';
 
 /**
+ * Chat history message from the API
+ */
+export interface ChatHistoryMessage {
+  role: string;
+  content: string;
+}
+
+/**
+ * Chat history response structure
+ */
+export interface ChatHistoryResponse {
+  status: number;
+  message: string;
+  responseStructure: {
+    toastMessage: string;
+    data: {
+      status: string;
+      tenantId: string;
+      sessionId: string;
+      botId: string;
+      summary: string;
+      messages: ChatHistoryMessage[];
+      messageCount: number;
+      createdAt: string;
+      endedAt: string;
+      metadata: Record<string, string>;
+    };
+  };
+}
+
+/**
+ * Get chat history for a session
+ * @param tenantId - The tenant identifier
+ * @param botId - The bot identifier
+ * @param sessionId - The session identifier
+ * @returns Chat history with messages
+ */
+export const getChatHistory = async (
+  tenantId: string,
+  botId: string,
+  sessionId: string
+): Promise<ChatHistoryResponse> => {
+  const accessToken = await getValidAccessToken();
+
+  const headers: Record<string, string> = {
+    'accept': '*/*',
+  };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(
+    `/api/v1/chat/history/tenants/${tenantId}/bots/${botId}/sessions/${sessionId}`,
+    {
+      method: 'GET',
+      headers,
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Failed to fetch chat history (HTTP ${response.status})`);
+  }
+
+  return response.json();
+};
+
+/**
  * Chat session response structure
  */
 export interface ChatServerSessionResponse {
   session_id: string;
+  session_token: string;
   chatbot_id: string;
   tenant_id: string;
   status: string;
@@ -77,8 +146,24 @@ export const createChatServerSession = async (
   const data = await response.json();
   const sessionData = data.responseStructure?.data;
 
+  // Debug: log the full response to identify correct field names
+  console.log('Anonymous session FULL response:', JSON.stringify(data, null, 2));
+  console.log('Anonymous session data fields:', sessionData ? Object.keys(sessionData) : 'no sessionData');
+  console.log('Anonymous session sessionId:', sessionData?.sessionId);
+  console.log('Anonymous session session_id:', sessionData?.session_id);
+  console.log('Anonymous session id:', sessionData?.id);
+  console.log('Anonymous session sessionToken:', sessionData?.sessionToken);
+
+  // Try multiple possible field names for the session ID
+  const resolvedSessionId = sessionData?.sessionId
+    || sessionData?.session_id
+    || sessionData?.id
+    || sessionData?.sessionToken
+    || '';
+
   return {
-    session_id: sessionData?.sessionToken || '',
+    session_id: resolvedSessionId,
+    session_token: sessionData?.sessionToken || sessionData?.session_token || '',
     chatbot_id: botId,
     tenant_id: tenantId,
     status: 'active',
@@ -132,6 +217,13 @@ export const submitLeadForm = async (
     throw new Error('No access token available');
   }
 
+  // Build lead data: start with defaults and merge any captured data
+  const leadData: Record<string, string> = {
+    Source: 'Website Chat',
+    Channel: 'TEXT',
+    ...(userInfo.capturedData || {}),
+  };
+
   const payload: Record<string, unknown> = {
     tenantId,
     botId,
@@ -140,19 +232,18 @@ export const submitLeadForm = async (
     lastName: userInfo.lastName || '',
     email: userInfo.email,
     phone: userInfo.phone || '',
+    lead: leadData,
   };
 
-  // Include capturedData if provided
-  if (userInfo.capturedData && Object.keys(userInfo.capturedData).length > 0) {
-    payload.capturedData = userInfo.capturedData;
-  }
+  // Debug: log the payload being sent
+  console.log('submitLeadForm payload:', JSON.stringify(payload, null, 2));
 
   const response = await fetch('/api/v1/leads/interactions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       'accept': '*/*',
+      ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
     },
     body: JSON.stringify(payload),
   });

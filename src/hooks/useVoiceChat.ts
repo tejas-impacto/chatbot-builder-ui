@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getVoiceSessionTicket, buildVoiceWebSocketUrl, type VoiceLeadInfo } from '@/lib/voiceApi';
+import { getVoiceSessionTicket, endVoiceSession, buildVoiceWebSocketUrl, type VoiceLeadInfo } from '@/lib/voiceApi';
 import { createLead } from '@/lib/botApi';
 import { AudioRecorder, AudioPlayer, calculateAudioLevel } from '@/utils/audioUtils';
 import type {
@@ -50,6 +50,7 @@ export const useVoiceChat = ({
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const leadIdRef = useRef<string | null>(null);
+  const sessionTokenRef = useRef<string | null>(null);
   const leadInfoRef = useRef<VoiceLeadInfo | null>(null);
   const leadSubmittedRef = useRef(false);
   const sessionReadyRef = useRef(false);
@@ -583,6 +584,7 @@ export const useVoiceChat = ({
       }
 
       leadIdRef.current = data.leadId;
+      sessionTokenRef.current = data.sessionToken;
       lastTicketRef.current = { ticket: data.ticket, wsEndpoint: data.wsEndpoint };
 
       const wsUrl = buildVoiceWebSocketUrl(data.ticket, data.wsEndpoint);
@@ -603,9 +605,17 @@ export const useVoiceChat = ({
   const endCall = useCallback(() => {
     shouldReconnectRef.current = false;
 
-    // Send END_SESSION to WebSocket (session ends via WebSocket, not REST)
+    // Send END_SESSION to WebSocket
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'END_SESSION' }));
+    }
+
+    // Call REST DELETE endpoint to end the session on the server
+    if (sessionTokenRef.current) {
+      endVoiceSession(sessionTokenRef.current).catch((err) => {
+        console.error('Failed to end voice session via REST:', err);
+      });
+      sessionTokenRef.current = null;
     }
 
     // Clear lead info ref (lead was already submitted when session was ready)

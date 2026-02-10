@@ -451,6 +451,7 @@ export interface CreateLeadRequest {
   email: string;
   phone?: string;
   channelType?: 'VOICE' | 'CHAT';
+  lead?: Record<string, unknown>;
 }
 
 export interface CreateLeadResponse {
@@ -477,9 +478,9 @@ export const createLead = async (leadData: CreateLeadRequest): Promise<CreateLea
   const response = await fetch('/api/v1/leads/interactions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       'accept': '*/*',
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(leadData),
   });
@@ -560,11 +561,32 @@ export interface LeadInteraction {
 export interface GetLeadInteractionsResponse {
   status: number;
   message: string;
-  data: LeadInteraction[];
-  total: number;
-  count: number;
-  currentPage: number;
+  // API may return data flat or wrapped in responseStructure
+  responseStructure?: {
+    toastMessage?: string;
+    data?: LeadInteraction[];
+    total?: number;
+    count?: number;
+    currentPage?: number;
+  };
+  data?: LeadInteraction[];
+  total?: number;
+  count?: number;
+  currentPage?: number;
 }
+
+/**
+ * Extract lead interactions data from either flat or wrapped response format
+ */
+export const extractLeadInteractions = (response: GetLeadInteractionsResponse) => {
+  const rs = response.responseStructure;
+  return {
+    data: rs?.data || response.data || [],
+    total: rs?.total ?? response.total ?? 0,
+    count: rs?.count ?? response.count ?? 0,
+    currentPage: rs?.currentPage ?? response.currentPage ?? 0,
+  };
+};
 
 /**
  * Get lead interactions for a tenant (optionally filtered by bot)
@@ -677,6 +699,67 @@ export const getKnowledgeGraph = async (
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.message || 'Failed to fetch knowledge graph');
+  }
+
+  return response.json();
+};
+
+// Recent Activity interfaces
+export interface ActivityItem {
+  id: number;
+  tenantId: string;
+  actionType: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  actorType: string;
+  actorId: string;
+  correlationId: string;
+  metadata: Record<string, string>;
+  createdAt: string;
+}
+
+export interface GetRecentActivityResponse {
+  status: number;
+  message: string;
+  data: ActivityItem[];
+  total: number;
+  count: number;
+  currentPage: number;
+}
+
+/**
+ * Get recent activity for a tenant
+ * @param tenantId - The tenant identifier
+ * @param page - Page number (default 0)
+ * @param size - Page size (default 20)
+ * @returns Paginated list of activity items
+ */
+export const getRecentActivity = async (
+  tenantId: string,
+  page: number = 0,
+  size: number = 20
+): Promise<GetRecentActivityResponse> => {
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch(
+    `/api/v1/activity?tenantId=${tenantId}&page=${page}&size=${size}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'accept': '*/*',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to fetch recent activity');
   }
 
   return response.json();

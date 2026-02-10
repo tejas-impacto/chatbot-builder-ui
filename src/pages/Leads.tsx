@@ -38,7 +38,8 @@ import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
-import { getLeadInteractions, type LeadInteraction } from "@/lib/botApi";
+import { getLeadInteractions, extractLeadInteractions, type LeadInteraction } from "@/lib/botApi";
+import { getChatHistory, type ChatHistoryMessage } from "@/lib/chatApi";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "converted";
 
@@ -64,6 +65,7 @@ const Leads = () => {
   const location = useLocation();
   const { toast } = useToast();
   const state = (location.state as LocationState) || {};
+  const tenantId = localStorage.getItem("tenantId") || "";
   const [leads, setLeads] = useState<LeadWithStatus[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<LeadWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,10 @@ const Leads = () => {
   const [totalLeads, setTotalLeads] = useState(0);
   const [selectedLead, setSelectedLead] = useState<LeadWithStatus | null>(null);
   const [activeStatusFilter, setActiveStatusFilter] = useState<LeadStatus | "all">("all");
+  const [conversationOpen, setConversationOpen] = useState(false);
+  const [conversationMessages, setConversationMessages] = useState<ChatHistoryMessage[]>([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationSummary, setConversationSummary] = useState("");
   const pageSize = 20;
 
   // Derive status based on interactions and time
@@ -96,8 +102,6 @@ const Leads = () => {
   };
 
   const fetchLeads = async (page: number = 0) => {
-    const tenantId = localStorage.getItem("tenantId");
-
     if (!tenantId) {
       setLoading(false);
       setError("No tenant ID found. Please complete onboarding first.");
@@ -108,7 +112,7 @@ const Leads = () => {
       setLoading(true);
       setError(null);
       const response = await getLeadInteractions(tenantId, undefined, page, pageSize);
-      const leadsData = response.data || [];
+      const { data: leadsData, total, currentPage: responsePage } = extractLeadInteractions(response);
 
       // Enhance leads with derived status and source
       const enhancedLeads: LeadWithStatus[] = leadsData.map((lead) => ({
@@ -120,8 +124,8 @@ const Leads = () => {
 
       setLeads(enhancedLeads);
       setFilteredLeads(enhancedLeads);
-      setTotalLeads(response.total || 0);
-      setCurrentPage(response.currentPage || 0);
+      setTotalLeads(total);
+      setCurrentPage(responsePage);
     } catch (err) {
       console.error("Error fetching leads:", err);
       setError("Failed to load leads. Please try again.");
@@ -258,6 +262,42 @@ const Leads = () => {
     }
   };
 
+  const handleViewConversation = async (lead: LeadWithStatus) => {
+    if (!lead.sessionId || !lead.botId) {
+      toast({
+        title: "Error",
+        description: `Missing ${!lead.sessionId ? 'session ID' : 'bot ID'} for this lead.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setConversationMessages([]);
+    setConversationSummary("");
+    setConversationOpen(true);
+    setConversationLoading(true);
+
+    const useTenantId = lead.tenantId || tenantId;
+    console.log("View Conversation - tenantId:", useTenantId, "botId:", lead.botId, "sessionId:", lead.sessionId);
+
+    try {
+      const response = await getChatHistory(useTenantId, lead.botId, lead.sessionId);
+      console.log("Chat history response:", response);
+      const data = response.responseStructure?.data;
+      setConversationMessages(data?.messages || []);
+      setConversationSummary(data?.summary || "");
+    } catch (err: any) {
+      console.error("Failed to load conversation:", err);
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to load conversation history.",
+        variant: "destructive",
+      });
+    } finally {
+      setConversationLoading(false);
+    }
+  };
+
   const updateLeadStatus = (leadId: string, newStatus: LeadStatus) => {
     setLeads((prev) =>
       prev.map((lead) =>
@@ -313,7 +353,7 @@ const Leads = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Total Leads</p>
-                        <p className="text-3xl font-bold text-foreground">{leads.length}</p>
+                        <p className="text-3xl font-bold text-foreground">{totalLeads || leads.length}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -435,13 +475,13 @@ const Leads = () => {
             {!loading && !error && filteredLeads.length > 0 && (
               <Card className="border-border/50">
                 <CardContent className="p-0 divide-y divide-border">
-                  {filteredLeads.map((lead) => {
+                  {filteredLeads.map((lead, index) => {
                     const statusConfig = STATUS_CONFIG[lead.status];
                     const fullName = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Unknown";
 
                     return (
                       <div
-                        key={lead.leadId || lead.sessionId}
+                        key={`${lead.leadId || lead.sessionId}-${index}`}
                         className="p-4 hover:bg-muted/30 cursor-pointer transition-colors"
                         onClick={() => setSelectedLead(lead)}
                       >
@@ -587,11 +627,11 @@ const Leads = () => {
 
       {/* Lead Details Dialog */}
       <Dialog open={!!selectedLead} onOpenChange={(open) => !open && setSelectedLead(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${
                   selectedLead ? getAvatarColor(`${selectedLead.firstName} ${selectedLead.lastName}`) : ""
                 }`}
               >
@@ -613,7 +653,7 @@ const Leads = () => {
           </DialogHeader>
 
           {selectedLead && (
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4 overflow-y-auto flex-1">
               {/* Contact Information */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-foreground">Contact Information</h4>
@@ -724,10 +764,8 @@ const Leads = () => {
                 <Button
                   variant="outline"
                   className="w-full rounded-full"
-                  onClick={() => {
-                    // TODO: Implement chat history view when endpoint is available
-                    console.log("View conversations for session:", selectedLead.sessionId);
-                  }}
+                  onClick={() => handleViewConversation(selectedLead)}
+                  disabled={!selectedLead.sessionId}
                 >
                   <History className="w-4 h-4 mr-2" />
                   View Conversations
@@ -753,6 +791,73 @@ const Leads = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Conversation History Dialog */}
+      <Dialog open={conversationOpen} onOpenChange={setConversationOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-primary" />
+              Conversation History
+            </DialogTitle>
+            {selectedLead && (
+              <p className="text-sm text-muted-foreground">
+                {`${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim() || "Unknown User"}
+                {selectedLead.email && ` • ${selectedLead.email}`}
+              </p>
+            )}
+          </DialogHeader>
+
+          {conversationSummary && (
+            <div className="px-1 py-2 border-b border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Summary</p>
+              <p className="text-sm text-foreground">{conversationSummary}</p>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto space-y-3 py-3 min-h-[200px] max-h-[400px]">
+            {conversationLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading conversation...
+                </div>
+              </div>
+            ) : conversationMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <MessageSquare className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">No messages found for this session</p>
+              </div>
+            ) : (
+              conversationMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setConversationOpen(false)}
+              className="rounded-full"
+            >
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </SidebarProvider>

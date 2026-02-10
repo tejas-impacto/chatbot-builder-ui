@@ -85,7 +85,7 @@ const ManageChatbot = () => {
       id: "1",
       text: `Hello! I'm ${chatbotName}. How can I help you today?`,
       sender: "bot",
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setMessages([welcomeMessage]);
   }, [chatbotName]);
@@ -103,16 +103,19 @@ const ManageChatbot = () => {
           chatbotName,
           `Hello! I'm ${chatbotName}. How can I help you today?`
         );
+        const newSessionToken = sessionResponse.session_token;
         const newSessionId = sessionResponse.session_id;
-        console.log("Chat session created:", newSessionId);
+        console.log("Chat session created - full response:", JSON.stringify(sessionResponse, null, 2));
+        console.log("Using sessionId for lead:", newSessionId);
+        console.log("Using sessionToken for auth:", newSessionToken);
 
-        // Update session state
-        setSessionId(newSessionId);
+        // Store session token for auth (used in X-Session-Token headers)
+        setSessionId(newSessionToken);
         setIsDemoMode(false);
 
-        // Step 2: Submit lead form via Main API
-        await submitLeadForm(tenantId, botId, newSessionId, userInfo);
-        console.log("Lead form submitted successfully");
+        // Step 2: Submit lead form via Main API (use actual sessionId, not token)
+        const leadResponse = await submitLeadForm(tenantId, botId, newSessionId, userInfo);
+        console.log("Lead form submitted successfully, response:", JSON.stringify(leadResponse, null, 2));
 
         toast({
           title: "Success",

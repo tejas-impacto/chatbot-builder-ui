@@ -5,7 +5,7 @@ import { BotCreationData } from "@/pages/BotCreation";
 interface ConversationStyleStepProps {
   data: BotCreationData;
   onChange: (data: Partial<BotCreationData>) => void;
-  botType: "chat" | "voice";
+  botType: "chat" | "voice" | "both";
 }
 
 const responseLengthOptions = [
@@ -24,7 +24,7 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
   return (
     <div className="space-y-6">
       {/* Chat Bot Specific Fields */}
-      {botType === "chat" && (
+      {(botType === "chat" || botType === "both") && (
         <>
           {/* Chat Response Length */}
           <div className="space-y-3">
@@ -74,7 +74,7 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
       )}
 
       {/* Voice Bot Specific Fields */}
-      {botType === "voice" && (
+      {(botType === "voice" || botType === "both") && (
         <>
           {/* Voice Response Length */}
           <div className="space-y-3">

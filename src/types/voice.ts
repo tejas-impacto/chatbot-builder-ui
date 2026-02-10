@@ -9,7 +9,8 @@ export interface VoiceSessionTicketResponse {
       sessionToken: string;
       leadId: string;
       wsEndpoint: string;
-      expiresAt: string;
+      ticketExpiresAt: string;
+      botId: string;
     };
   };
 }

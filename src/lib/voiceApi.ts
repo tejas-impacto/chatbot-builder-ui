@@ -50,6 +50,7 @@ export const getVoiceSessionTicket = async (
     body: JSON.stringify({
       botId,
       fingerprint,
+      metadata: {},
       ...(leadInfo && {
         firstName: leadInfo.firstName,
         lastName: leadInfo.lastName,
@@ -65,6 +66,26 @@ export const getVoiceSessionTicket = async (
   }
 
   return response.json();
+};
+
+/**
+ * End a voice session
+ * REST API: DELETE /api/v1/voice/sessions
+ * @param sessionToken - The session token from getVoiceSessionTicket
+ */
+export const endVoiceSession = async (sessionToken: string): Promise<void> => {
+  const response = await fetch('/api/v1/voice/sessions', {
+    method: 'DELETE',
+    headers: {
+      'accept': '*/*',
+      'X-Session-Token': sessionToken,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.responseStructure?.toastMessage || error.message || 'Failed to end voice session');
+  }
 };
 
 /**

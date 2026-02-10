@@ -8,6 +8,7 @@ import {
   Bot,
   Mic,
   Loader2,
+  MessageSquare,
   LayoutDashboard,
   Database,
   FileText,
@@ -24,8 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getValidAccessToken } from "@/lib/auth";
-import { getBotsByTenant, type Bot as BotType } from "@/lib/botApi";
-import { getLeadInteractions, type LeadInteraction } from "@/lib/botApi";
+import { getBotsByTenant, getRecentActivity, type Bot as BotType, type ActivityItem } from "@/lib/botApi";
 
 // Navigation items for search
 interface NavItem {
@@ -143,7 +143,7 @@ const DashboardHeader = () => {
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Notifications state
-  const [recentLeads, setRecentLeads] = useState<LeadInteraction[]>([]);
+  const [notifications, setNotifications] = useState<ActivityItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
@@ -177,20 +177,13 @@ const DashboardHeader = () => {
         const botsData = botsResponse.responseStructure?.data || [];
         setBots(botsData);
 
-        // Fetch recent leads across all bots for notifications
-        const allLeads: LeadInteraction[] = [];
-        for (const bot of botsData.slice(0, 5)) {
-          try {
-            const leadsResponse = await getLeadInteractions(storedTenantId, bot.botId, 0, 5);
-            const leads = leadsResponse.data || [];
-            allLeads.push(...leads.map((l: LeadInteraction) => ({ ...l, botId: bot.botId, agentName: bot.agentName } as LeadInteraction & { agentName: string })));
-          } catch {
-            // Skip bots that fail
-          }
+        // Fetch recent activity for notifications
+        try {
+          const activityResponse = await getRecentActivity(storedTenantId, 0, 10);
+          setNotifications(activityResponse.data || []);
+        } catch {
+          // Skip if activity fetch fails
         }
-        // Sort by most recent and take top 10
-        allLeads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setRecentLeads(allLeads.slice(0, 10));
       } catch (err) {
         console.error('Failed to fetch data:', err);
       }
@@ -286,50 +279,12 @@ const DashboardHeader = () => {
   const navResults = searchResults.filter((r) => r.type === "navigation");
   const botResults = searchResults.filter((r) => r.type === "bot");
 
-  // Build activity items for notifications
-  interface ActivityItem {
-    id: string;
-    type: "bot_created" | "new_lead";
-    title: string;
-    description: string;
-    time: string;
-    icon: "bot" | "lead";
-  }
-
-  const activityItems: ActivityItem[] = [];
-
-  // Add recent bot creations
-  bots
-    .slice()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5)
-    .forEach((bot) => {
-      activityItems.push({
-        id: `bot-${bot.botId}`,
-        type: "bot_created",
-        title: `${bot.agentName}`,
-        description: `${bot.channelType === "VOICE" ? "Voice" : "Chat"} bot created`,
-        time: bot.createdAt,
-        icon: "bot",
-      });
-    });
-
-  // Add recent leads
-  recentLeads.forEach((lead) => {
-    const name = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Unknown User";
-    activityItems.push({
-      id: `lead-${lead.leadId || lead.sessionId}`,
-      type: "new_lead",
-      title: name,
-      description: lead.email ? `New lead: ${lead.email}` : "New conversation",
-      time: lead.createdAt,
-      icon: "lead",
-    });
-  });
-
-  // Sort all activity by time
-  activityItems.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  const displayActivities = activityItems.slice(0, 10);
+  const formatActionType = (actionType: string) => {
+    return actionType
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -469,7 +424,7 @@ const DashboardHeader = () => {
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon" className="relative rounded-full">
                 <Bell className="w-5 h-5" />
-                {displayActivities.length > 0 && (
+                {notifications.length > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
                 )}
               </Button>
@@ -480,48 +435,58 @@ const DashboardHeader = () => {
                 <p className="text-xs text-muted-foreground">Latest updates across your bots</p>
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {displayActivities.length === 0 ? (
+                {notifications.length === 0 ? (
                   <div className="p-6 text-center">
                     <Bell className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">No recent activity</p>
                   </div>
                 ) : (
                   <ul>
-                    {displayActivities.map((activity) => (
+                    {notifications.map((activity) => (
                       <li
                         key={activity.id}
                         className="px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 cursor-pointer"
                         onClick={() => {
                           setNotificationsOpen(false);
-                          if (activity.type === "new_lead") {
-                            navigate("/leads");
+                          if (activity.entityType === 'LEAD') {
+                            navigate('/leads', { state: { highlightLeadId: activity.entityId } });
+                          } else if (activity.entityType === 'BOT') {
+                            navigate(`/manage-agents/bot/${activity.entityId}`, {
+                              state: { bot: bots.find(b => b.botId === activity.entityId) },
+                            });
+                          } else if (activity.entityType === 'SESSION') {
+                            navigate('/leads', { state: { highlightSessionId: activity.entityId } });
                           } else {
-                            navigate("/manage-agents");
+                            navigate('/manage-agents');
                           }
                         }}
                       >
                         <div className="flex items-start gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            activity.icon === "bot"
-                              ? "bg-primary/10"
-                              : "bg-green-500/10"
+                            activity.entityType === 'BOT'
+                              ? 'bg-primary/10'
+                              : activity.entityType === 'LEAD'
+                              ? 'bg-green-500/10'
+                              : 'bg-blue-500/10'
                           }`}>
-                            {activity.icon === "bot" ? (
+                            {activity.entityType === 'BOT' ? (
                               <Bot className="w-4 h-4 text-primary" />
-                            ) : (
+                            ) : activity.entityType === 'LEAD' ? (
                               <Users className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <MessageSquare className="w-4 h-4 text-blue-500" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">
-                              {activity.title}
+                              {formatActionType(activity.actionType)}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">
-                              {activity.description}
+                              {activity.entityName || activity.entityType}
                             </p>
                           </div>
                           <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                            {formatTimeAgo(activity.time)}
+                            {formatTimeAgo(activity.createdAt)}
                           </span>
                         </div>
                       </li>
