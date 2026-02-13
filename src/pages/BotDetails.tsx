@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { HelpCircle, ExternalLink, MessageCircle } from "lucide-react";
 import { getChatHistory, type ChatHistoryMessage } from "@/lib/chatApi";
+import { useBotCreation } from "@/contexts/BotCreationContext";
 import {
   Collapsible,
   CollapsibleContent,
@@ -67,13 +68,13 @@ interface ApiDocument {
   createdAt?: string;
 }
 
-const CHAT_SERVER_URL = "http://172.16.0.99:8002";
-
 const BotDetails = () => {
   const { botId } = useParams<{ botId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { status: creationStatus, session: creationSession } = useBotCreation();
+  const isCreatingThisBot = (creationStatus !== 'idle' && creationStatus !== 'completed' && creationStatus !== 'error') && creationSession?.botId === botId;
   const state = (location.state as LocationState) || {};
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +85,7 @@ const BotDetails = () => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [endpointsOpen, setEndpointsOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
-  const [widgetOpen, setWidgetOpen] = useState(false);
+  const [widgetOpen, setWidgetOpen] = useState(true);
   const [queriesOpen, setQueriesOpen] = useState(false);
   const [queries, setQueries] = useState<UnresolvedQuery[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
@@ -368,33 +369,6 @@ const BotDetails = () => {
     return "text-gray-500";
   };
 
-  // API Endpoints data
-  const endpoints = [
-    {
-      key: "message",
-      title: "Message API (SSE Streaming)",
-      method: "POST",
-      url: `${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/message`,
-      description: "Send a message and receive streaming response",
-      curl: `curl -X POST '${CHAT_SERVER_URL}/chat/${tenantId}/${botId}/message' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "message": "Hello, how can you help me?",
-    "session_id": "your_session_id"
-  }'`,
-    },
-  ];
-
-  const widgetCode = `<!-- Chatbot Widget -->
-<script>
-  (function() {
-    var script = document.createElement('script');
-    script.src = '${window.location.origin}/widget.js';
-    script.setAttribute('data-chatbot-id', '${botId}');
-    script.setAttribute('data-tenant-id', '${tenantId}');
-    document.body.appendChild(script);
-  })();
-</script>`;
 
   if (!bot) {
     return (
@@ -460,13 +434,21 @@ const BotDetails = () => {
                         botId: botId,
                         chatbotName: bot.agentName,
                         tenantId,
-                        showLeadForm: true,
+                        showLeadForm: bot.leadCaptureRequired ?? false,
                       },
                     })
                   }
+                  disabled={isCreatingThisBot}
                   className="rounded-full"
                 >
-                  Try Bot
+                  {isCreatingThisBot ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Setting up...
+                    </>
+                  ) : (
+                    'Try Bot'
+                  )}
                 </Button>
               </div>
             </div>
@@ -557,6 +539,70 @@ const BotDetails = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column - Expandable Sections */}
               <div className="space-y-4">
+                {/* Bot Link - Expandable (open by default) */}
+                <Collapsible open={widgetOpen} onOpenChange={setWidgetOpen}>
+                  <Card className="border-border/50">
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Link2 className="w-5 h-5 text-primary" />
+                            {isVoiceBot ? "Voice Link" : "Chat Link"}
+                          </CardTitle>
+                          {widgetOpen ? (
+                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Share this link to let users {isVoiceBot ? "talk to" : "chat with"} your bot
+                        </p>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="pt-0 space-y-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground mb-2">{isVoiceBot ? "Voice Link" : "Chat Link"}</p>
+                          <p className="text-xs text-muted-foreground mb-3">
+                            Share this link with your customers to start a {isVoiceBot ? "voice call" : "chat"} with this bot.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={`${window.location.origin}/${isVoiceBot ? "voice" : "chat"}/${tenantId}/${botId}`}
+                              className="flex-1 text-sm bg-muted/50 border border-border rounded-lg px-3 py-2 text-foreground select-all"
+                              onClick={(e) => (e.target as HTMLInputElement).select()}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg gap-1.5"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/${isVoiceBot ? "voice" : "chat"}/${tenantId}/${botId}`);
+                                toast({ title: "Copied!", description: `${isVoiceBot ? "Voice" : "Chat"} link copied to clipboard.` });
+                              }}
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              Copy
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg gap-1.5"
+                              onClick={() => window.open(`${window.location.origin}/${isVoiceBot ? "voice" : "chat"}/${tenantId}/${botId}`, '_blank')}
+                            >
+                              <ExternalLinkIcon className="w-3.5 h-3.5" />
+                              Open
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+
                 {/* API Endpoints - Expandable */}
                 <Collapsible open={endpointsOpen} onOpenChange={setEndpointsOpen}>
                   <Card className="border-border/50">
@@ -579,51 +625,14 @@ const BotDetails = () => {
                       </CardHeader>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <CardContent className="space-y-4 pt-0">
-                        {endpoints.map((endpoint) => (
-                          <div key={endpoint.key} className="border border-border/50 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium text-foreground">
-                                {endpoint.title}
-                              </span>
-                              <span className="px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded">
-                                {endpoint.method}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-3">
-                              {endpoint.description}
-                            </p>
-                            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-                              <code className="flex-1 text-xs font-mono text-foreground break-all">
-                                {endpoint.url}
-                              </code>
-                              <button
-                                onClick={() => handleCopy(endpoint.url, `${endpoint.key}-url`)}
-                                className="p-1 hover:bg-muted rounded"
-                              >
-                                {copiedField === `${endpoint.key}-url` ? (
-                                  <Check className="w-3 h-3 text-green-500" />
-                                ) : (
-                                  <Copy className="w-3 h-3 text-muted-foreground" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="mt-3">
-                              <div className="flex items-center justify-between mb-1">
-                                <p className="text-xs text-muted-foreground">cURL</p>
-                                <button
-                                  onClick={() => handleCopy(endpoint.curl, `${endpoint.key}-curl`)}
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  {copiedField === `${endpoint.key}-curl` ? "Copied!" : "Copy"}
-                                </button>
-                              </div>
-                              <pre className="p-2 bg-zinc-900 text-zinc-100 rounded text-xs overflow-x-auto max-h-32">
-                                <code>{endpoint.curl}</code>
-                              </pre>
-                            </div>
-                          </div>
-                        ))}
+                      <CardContent className="pt-0">
+                        <div className="flex flex-col items-center justify-center py-8">
+                          <Code className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                          <p className="text-sm font-medium text-muted-foreground">Coming Soon</p>
+                          <p className="text-xs text-muted-foreground/70 mt-1 text-center max-w-xs">
+                            API integration endpoints will be available here once the feature is released.
+                          </p>
+                        </div>
                       </CardContent>
                     </CollapsibleContent>
                   </Card>
@@ -801,55 +810,6 @@ const BotDetails = () => {
                   </Card>
                 </Collapsible>
 
-                {/* Widget Embed Code - Expandable */}
-                <Collapsible open={widgetOpen} onOpenChange={setWidgetOpen}>
-                  <Card className="border-border/50">
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Link2 className="w-5 h-5 text-primary" />
-                            Widget Embed Code
-                          </CardTitle>
-                          {widgetOpen ? (
-                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Embed the chatbot widget on your website
-                        </p>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs text-muted-foreground">HTML Code</p>
-                          <button
-                            onClick={() => handleCopy(widgetCode, "widget")}
-                            className="flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            {copiedField === "widget" ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                Copy
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <pre className="p-3 bg-zinc-900 text-zinc-100 rounded-lg text-xs overflow-x-auto">
-                          <code>{widgetCode}</code>
-                        </pre>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
               </div>
 
               {/* Right Column - Chat History */}

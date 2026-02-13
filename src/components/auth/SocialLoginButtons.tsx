@@ -1,8 +1,7 @@
 const SocialLoginButtons = () => {
   const handleGoogleLogin = () => {
-    // Use direct navigation instead of fetch() to avoid CORS issues with OAuth redirects
-    const currentPath = window.location.pathname;
-    window.location.href = `/api/v1/auth/google/login?redirect_path=${encodeURIComponent(currentPath)}`;
+    // Always redirect back to /login after Google OAuth, since Login page handles hash fragment tokens
+    window.location.href = `/api/v1/auth/google/login?redirect_path=${encodeURIComponent('/login')}`;
   };
 
   return (

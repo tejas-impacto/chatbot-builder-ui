@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { startTokenRefreshTimer, isAuthenticated } from "@/lib/auth";
+import { BotCreationProvider } from "@/contexts/BotCreationContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -31,6 +32,8 @@ import UnresolvedQueries from "./pages/UnresolvedQueries";
 import CRM from "./pages/CRM";
 import Leads from "./pages/Leads";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
+import PublicChat from "./pages/PublicChat";
+import PublicVoiceChat from "./pages/PublicVoiceChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +52,7 @@ const App = () => {
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <BotCreationProvider>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
@@ -57,6 +61,8 @@ const App = () => {
           <Route path="/google-user-welcome" element={<GoogleUserWelcome />} />
           <Route path="/setup-password" element={<SetupPassword />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/chat/:tenantId/:botId" element={<PublicChat />} />
+          <Route path="/voice/:tenantId/:botId" element={<PublicVoiceChat />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/bot-creation" element={<BotCreation />} />
           <Route path="/bot-creation-progress" element={<BotCreationProgress />} />
@@ -89,6 +95,7 @@ const App = () => {
           <Route path="/knowledge-graph" element={<KnowledgeGraph />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </BotCreationProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

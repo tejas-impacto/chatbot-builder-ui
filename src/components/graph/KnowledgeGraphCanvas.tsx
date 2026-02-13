@@ -248,20 +248,8 @@ export const KnowledgeGraphCanvas = ({
 
     network.on('stabilizationIterationsDone', () => {
       setIsStabilizing(false);
-      // Keep physics enabled with gentle settings for Neo4j-like interaction
-      network.setOptions({
-        physics: {
-          enabled: true,
-          solver: 'forceAtlas2Based',
-          forceAtlas2Based: {
-            gravitationalConstant: -40,
-            centralGravity: 0.001,
-            springLength: 200,
-            springConstant: 0.04,
-            damping: 0.9,
-          },
-        },
-      });
+      // Disable physics so nodes stay fixed in place after layout
+      network.setOptions({ physics: { enabled: false } });
       // Fit to screen after stabilization
       network.fit({
         animation: {
@@ -271,11 +259,44 @@ export const KnowledgeGraphCanvas = ({
       });
     });
 
-    // Neo4j-like dragging: pin node at its new position after drag
-    network.on('dragEnd', (params) => {
+    // Elastic drag: re-enable physics while dragging so connected nodes
+    // follow naturally via spring forces, then freeze everything on release.
+    network.on('dragStart', (params) => {
       if (params.nodes.length > 0) {
-        nodesDataSet.update({ id: params.nodes[0], fixed: { x: true, y: true } });
+        // Unfix all nodes so the spring simulation can move them
+        const allIds = nodesDataSet.getIds();
+        nodesDataSet.update(allIds.map(id => ({ id, fixed: false })));
+        // Re-enable physics with soft spring settings for an elastic feel
+        network.setOptions({
+          physics: {
+            enabled: true,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+              gravitationalConstant: -30,
+              centralGravity: 0.001,
+              springLength: 200,
+              springConstant: 0.04,
+              damping: 0.5,
+            },
+            maxVelocity: 30,
+          },
+        });
       }
+    });
+
+    network.on('dragEnd', () => {
+      // Disable physics and pin every node where it is
+      network.setOptions({ physics: { enabled: false } });
+      const allIds = nodesDataSet.getIds();
+      const positions = network.getPositions(allIds as string[]);
+      nodesDataSet.update(
+        (allIds as string[]).map(id => ({
+          id,
+          x: positions[id]?.x,
+          y: positions[id]?.y,
+          fixed: { x: true, y: true },
+        }))
+      );
     });
 
     // Cleanup

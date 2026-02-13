@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { BotCreationData } from "@/pages/BotCreation";
 
 interface ConversationStyleStepProps {
@@ -28,8 +29,9 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
         <>
           {/* Chat Response Length */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-foreground">
-              Response Length
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              Chat Response Length
+              <InfoTooltip text="Controls how verbose or concise your chat agent's replies will be" />
             </Label>
             <div className="grid grid-cols-3 gap-3">
               {responseLengthOptions.map((option) => (
@@ -60,8 +62,9 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
 
           {/* Chat Guidelines */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
               Chat Guidelines
+              <InfoTooltip text="Custom rules or instructions for how your chat agent should respond" />
             </Label>
             <Input
               placeholder="Enter Chat Guidelines"
@@ -78,8 +81,9 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
         <>
           {/* Voice Response Length */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-foreground">
-              Response Length
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              Voice Response Length
+              <InfoTooltip text="Controls how long or brief your voice agent's spoken replies will be" />
             </Label>
             <div className="grid grid-cols-3 gap-3">
               {responseLengthOptions.map((option) => (
@@ -110,8 +114,9 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
 
           {/* Voice Guidelines */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
               Voice Guidelines
+              <InfoTooltip text="Custom rules or instructions for how your voice agent should speak" />
             </Label>
             <Input
               placeholder="Enter Voice Guidelines"
@@ -123,8 +128,9 @@ const ConversationStyleStep = ({ data, onChange, botType }: ConversationStyleSte
 
           {/* Voice Speed */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-foreground">
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
               Voice Speed
+              <InfoTooltip text="Set the speaking pace for your voice agent's responses" />
             </Label>
             <div className="grid grid-cols-3 gap-3">
               {voiceSpeedOptions.map((option) => (

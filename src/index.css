@@ -37,19 +37,19 @@
     --radius: 0.75rem;
 
     /* Custom Agent Builder tokens */
-    --gradient-start: 166 76% 94%;
-    --gradient-end: 180 50% 98%;
+    --gradient-start: 0 0% 100%;
+    --gradient-end: 0 0% 100%;
     --brand-cyan: 45 90% 55%;
     --brand-pink: 330 80% 60%;
     --success: 142 76% 36%;
     
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 270 20% 95%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent: 270 15% 92%;
     --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 270 10% 88%;
     --sidebar-ring: 286 57% 28%;
   }
 
@@ -73,13 +73,13 @@
     --border: 270 33% 18%;
     --input: 270 33% 18%;
     --ring: 270 27% 84%;
-    --sidebar-background: 270 5.9% 10%;
+    --sidebar-background: 270 10% 12%;
     --sidebar-foreground: 270 4.8% 95.9%;
     --sidebar-primary: 286 57% 28%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 270 3.7% 15.9%;
+    --sidebar-accent: 270 8% 18%;
     --sidebar-accent-foreground: 270 4.8% 95.9%;
-    --sidebar-border: 270 3.7% 15.9%;
+    --sidebar-border: 270 8% 18%;
     --sidebar-ring: 286 57% 28%;
   }
 }
@@ -101,7 +101,7 @@
       135deg,
       hsl(var(--gradient-start)) 0%,
       hsl(var(--gradient-end)) 50%,
-      hsl(0 0% 100%) 100%
+      hsl(0, 0%, 100%) 100%
     );
   }
 

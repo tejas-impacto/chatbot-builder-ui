@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { Edit2, Camera, Eye, EyeOff, Save, Loader2, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Edit2, Camera, Save, Loader2, AlertCircle, X, Eye, EyeOff } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +13,7 @@ import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useToast } from "@/hooks/use-toast";
-import { getValidAccessToken, logout } from "@/lib/auth";
+import { getValidAccessToken } from "@/lib/auth";
 
 type TabType = "Basic" | "Account" | "Security";
 
@@ -47,17 +49,147 @@ const initialTenantData: TenantData = {
   primaryAdminEmail: "",
 };
 
+// Decode JWT payload to extract user info (name, email)
+const decodeJwtPayload = (): { name?: string; email?: string } => {
+  try {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return {};
+    const payload = token.split('.')[1];
+    if (!payload) return {};
+    const decoded = JSON.parse(atob(payload));
+    return { name: decoded.name || decoded.given_name, email: decoded.email || decoded.sub };
+  } catch {
+    return {};
+  }
+};
+
 const Settings = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>("Basic");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [tenantData, setTenantData] = useState<TenantData>(initialTenantData);
   const [editedData, setEditedData] = useState<TenantData>(initialTenantData);
+  const [jwtUser] = useState(decodeJwtPayload);
+  const [showOnboardingPopup, setShowOnboardingPopup] = useState(false);
+
+  const needsOnboarding = localStorage.getItem('isOnboarded') !== 'true' && localStorage.getItem('onboardingSkipped') === 'true';
 
   const tabs: TabType[] = ["Basic", "Account", "Security"];
+
+  const handleTabClick = (tab: TabType) => {
+    if (needsOnboarding && (tab === "Account" || tab === "Security")) {
+      setShowOnboardingPopup(true);
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
+  // Password change state
+  type PasswordStep = "idle" | "otp-sent" | "verify" | "new-password";
+  const [pwStep, setPwStep] = useState<PasswordStep>("idle");
+  const [pwOtp, setPwOtp] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [showPwNew, setShowPwNew] = useState(false);
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  const userEmail = tenantData.primaryAdminEmail || jwtUser.email || "";
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  const handleSendOtp = async () => {
+    if (!userEmail) {
+      toast({ title: "Error", description: "No email found for your account", variant: "destructive" });
+      return;
+    }
+    setPwLoading(true);
+    try {
+      const response = await fetch('/api/v1/password/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.responseStructure?.toastMessage || 'Failed to send OTP');
+      toast({ title: "OTP Sent", description: `Verification code sent to ${userEmail}` });
+      setPwStep("otp-sent");
+      setResendCooldown(60);
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to send OTP", variant: "destructive" });
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (pwOtp.length !== 6) return;
+    setPwLoading(true);
+    try {
+      const response = await fetch('/api/v1/password/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
+        body: JSON.stringify({ email: userEmail, otp: pwOtp }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.responseStructure?.toastMessage || 'Invalid OTP');
+      toast({ title: "Verified", description: "OTP verified successfully" });
+      setPwStep("new-password");
+    } catch (error) {
+      toast({ title: "Verification Failed", description: error instanceof Error ? error.message : "Invalid OTP", variant: "destructive" });
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (pwNew !== pwConfirm) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    if (pwNew.length < 8) {
+      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    setPwLoading(true);
+    try {
+      const response = await fetch('/api/v1/password/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
+        body: JSON.stringify({ email: userEmail, otp: pwOtp, newPassword: pwNew, confirmPassword: pwConfirm }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.responseStructure?.toastMessage || 'Failed to reset password');
+      toast({ title: "Success", description: "Password changed successfully" });
+      // Reset state
+      setPwStep("idle");
+      setPwOtp("");
+      setPwNew("");
+      setPwConfirm("");
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to reset password", variant: "destructive" });
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleCancelPasswordChange = () => {
+    setPwStep("idle");
+    setPwOtp("");
+    setPwNew("");
+    setPwConfirm("");
+    setPwLoading(false);
+  };
 
   useEffect(() => {
     fetchTenantData();
@@ -70,7 +202,8 @@ const Settings = () => {
       const tenantId = localStorage.getItem('tenantId');
 
       if (!accessToken || !tenantId) {
-        throw new Error('Authentication required');
+        // No tenant yet (onboarding not done) — just show empty fields
+        return;
       }
 
       const response = await fetch(`/api/v1/tenants/${tenantId}`, {
@@ -182,10 +315,6 @@ const Settings = () => {
     setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleLogout = () => {
-    logout();
-  };
-
   const displayData = isEditing ? editedData : tenantData;
 
   if (isLoading) {
@@ -220,7 +349,7 @@ const Settings = () => {
                   <Button
                     key={tab}
                     variant={activeTab === tab ? "default" : "ghost"}
-                    onClick={() => setActiveTab(tab)}
+                    onClick={() => handleTabClick(tab)}
                     className={`rounded-full px-6 ${
                       activeTab === tab
                         ? "bg-primary text-primary-foreground"
@@ -236,7 +365,10 @@ const Settings = () => {
               {activeTab === "Basic" && (
                 <div className="space-y-8">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-semibold text-foreground">Personal Information</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-semibold text-foreground">Personal Information</h2>
+                      <InfoTooltip text="Your basic profile details visible across the platform" size="md" />
+                    </div>
                     {!isEditing ? (
                       <Button variant="ghost" size="icon" onClick={handleEdit}>
                         <Edit2 className="w-4 h-4" />
@@ -264,63 +396,69 @@ const Settings = () => {
                   </div>
 
                   {/* Avatar */}
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 opacity-50">
                     <Avatar className="w-20 h-20">
                       <AvatarImage src="/placeholder.svg" />
                       <AvatarFallback>
-                        {displayData.brandDisplayName?.substring(0, 2).toUpperCase() || "U"}
+                        {(displayData.brandDisplayName || jwtUser.name || "U").substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex gap-2">
-                      <Button variant="default" className="rounded-full bg-primary" disabled={!isEditing}>
-                        <Camera className="w-4 h-4 mr-2" />
-                        Replace Photo
-                      </Button>
-                      <Button variant="outline" className="rounded-full" disabled={!isEditing}>
-                        Remove
-                      </Button>
+                    <div>
+                      <div className="flex gap-2">
+                        <Button variant="default" className="rounded-full bg-primary" disabled>
+                          <Camera className="w-4 h-4 mr-2" />
+                          Replace Photo
+                        </Button>
+                        <Button variant="outline" className="rounded-full" disabled>
+                          Remove
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1.5">Coming soon</p>
                     </div>
                   </div>
 
                   {/* Form Fields */}
                   <div className="space-y-6">
                     <div>
-                      <Label htmlFor="displayName" className="text-sm text-muted-foreground">
+                      <Label htmlFor="displayName" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Display Name
+                        <InfoTooltip text="The name shown across the platform and to your customers" />
                       </Label>
                       <Input
                         id="displayName"
-                        value={displayData.brandDisplayName || ""}
+                        value={displayData.brandDisplayName || jwtUser.name || ""}
                         onChange={(e) => handleInputChange('brandDisplayName', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="email" className="text-sm text-muted-foreground">
+                      <Label htmlFor="email" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Email
+                        <InfoTooltip text="Primary email used for account notifications and login" />
                       </Label>
                       <Input
                         id="email"
                         type="email"
-                        value={displayData.primaryAdminEmail || ""}
+                        value={displayData.primaryAdminEmail || jwtUser.email || ""}
                         onChange={(e) => handleInputChange('primaryAdminEmail', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="location" className="text-sm text-muted-foreground">
+                      <Label htmlFor="location" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Location
+                        <InfoTooltip text="Your country or region for localization purposes" />
                       </Label>
                       <Input
                         id="location"
                         value={displayData.country || ""}
                         onChange={(e) => handleInputChange('country', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
                   </div>
@@ -330,7 +468,10 @@ const Settings = () => {
               {activeTab === "Account" && (
                 <div className="space-y-8">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-semibold text-foreground">Account</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-semibold text-foreground">Account</h2>
+                      <InfoTooltip text="Company and business details used to personalize your AI agents" size="md" />
+                    </div>
                     {!isEditing ? (
                       <Button variant="ghost" size="icon" onClick={handleEdit}>
                         <Edit2 className="w-4 h-4" />
@@ -359,8 +500,9 @@ const Settings = () => {
 
                   <div className="space-y-6">
                     <div>
-                      <Label htmlFor="tenantId" className="text-sm text-muted-foreground">
+                      <Label htmlFor="tenantId" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Tenant ID
+                        <InfoTooltip text="Your unique account identifier — cannot be changed" />
                       </Label>
                       <Input
                         id="tenantId"
@@ -371,41 +513,44 @@ const Settings = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="companyName" className="text-sm text-muted-foreground">
+                      <Label htmlFor="companyName" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Company name *
+                        <InfoTooltip text="Official registered name of your company" />
                       </Label>
                       <Input
                         id="companyName"
                         value={displayData.legalCompanyName || ""}
                         onChange={(e) => handleInputChange('legalCompanyName', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="brandName" className="text-sm text-muted-foreground">
+                      <Label htmlFor="brandName" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Brand Name *
+                        <InfoTooltip text="The name customers see when interacting with your agents" />
                       </Label>
                       <Input
                         id="brandName"
                         value={displayData.brandDisplayName || ""}
                         onChange={(e) => handleInputChange('brandDisplayName', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="industry" className="text-sm text-muted-foreground">
+                      <Label htmlFor="industry" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Industry *
+                        <InfoTooltip text="Your business sector — helps tailor agent responses" />
                       </Label>
                       <Select
                         value={displayData.industry || ""}
                         onValueChange={(value) => handleInputChange('industry', value)}
                         disabled={!isEditing}
                       >
-                        <SelectTrigger className="mt-2 rounded-xl border-border/50">
+                        <SelectTrigger className="mt-2 rounded-xl border-border/50 disabled:opacity-100 disabled:text-foreground disabled:cursor-default">
                           <SelectValue placeholder="Select industry" />
                         </SelectTrigger>
                         <SelectContent>
@@ -422,34 +567,37 @@ const Settings = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="companyWebsite" className="text-sm text-muted-foreground">
+                      <Label htmlFor="companyWebsite" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Company website *
+                        <InfoTooltip text="Your company's main website URL" />
                       </Label>
                       <Input
                         id="companyWebsite"
                         value={displayData.companyWebsite || ""}
                         onChange={(e) => handleInputChange('companyWebsite', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="companyDescription" className="text-sm text-muted-foreground">
+                      <Label htmlFor="companyDescription" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Company description *
+                        <InfoTooltip text="A brief summary of what your company does" />
                       </Label>
                       <Textarea
                         id="companyDescription"
                         value={displayData.companyDescription || ""}
                         onChange={(e) => handleInputChange('companyDescription', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50 min-h-[100px]"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 min-h-[100px] ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="productsServices" className="text-sm text-muted-foreground">
+                      <Label htmlFor="productsServices" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Primary products / services?
+                        <InfoTooltip text="The main offerings your agents should know about" />
                       </Label>
                       <Input
                         id="productsServices"
@@ -462,15 +610,16 @@ const Settings = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="employeesRange" className="text-sm text-muted-foreground">
+                      <Label htmlFor="employeesRange" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Company Size *
+                        <InfoTooltip text="Number of employees in your organization" />
                       </Label>
                       <Select
                         value={displayData.employeesRange || ""}
                         onValueChange={(value) => handleInputChange('employeesRange', value)}
                         disabled={!isEditing}
                       >
-                        <SelectTrigger className="mt-2 rounded-xl border-border/50">
+                        <SelectTrigger className="mt-2 rounded-xl border-border/50 disabled:opacity-100 disabled:text-foreground disabled:cursor-default">
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
@@ -484,15 +633,16 @@ const Settings = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="customerType" className="text-sm text-muted-foreground">
+                      <Label htmlFor="customerType" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Target Audience *
+                        <InfoTooltip text="Whether you serve businesses, consumers, or both" />
                       </Label>
                       <Select
                         value={displayData.customerType || ""}
                         onValueChange={(value) => handleInputChange('customerType', value)}
                         disabled={!isEditing}
                       >
-                        <SelectTrigger className="mt-2 rounded-xl border-border/50">
+                        <SelectTrigger className="mt-2 rounded-xl border-border/50 disabled:opacity-100 disabled:text-foreground disabled:cursor-default">
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
@@ -504,15 +654,16 @@ const Settings = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="customerGeography" className="text-sm text-muted-foreground">
+                      <Label htmlFor="customerGeography" className="text-sm text-muted-foreground flex items-center gap-1.5">
                         Customer Geography *
+                        <InfoTooltip text="The primary region your customers are located in" />
                       </Label>
                       <Input
                         id="customerGeography"
                         value={displayData.region || ""}
                         onChange={(e) => handleInputChange('region', e.target.value)}
-                        disabled={!isEditing}
-                        className="mt-2 rounded-xl border-border/50"
+                        readOnly={!isEditing}
+                        className={`mt-2 rounded-xl border-border/50 ${!isEditing ? "cursor-default focus:ring-0" : ""}`}
                       />
                     </div>
                   </div>
@@ -522,47 +673,116 @@ const Settings = () => {
               {activeTab === "Security" && (
                 <div className="space-y-8">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-semibold text-foreground">Security</h2>
+                    <h2 className="text-2xl font-semibold text-foreground flex items-center gap-2">Security <InfoTooltip text="Manage your password, authentication, and session settings" size="md" /></h2>
                   </div>
 
                   <div className="space-y-6">
                     <div>
-                      <h3 className="font-medium text-foreground mb-4">Password</h3>
-                      <div>
-                        <Label htmlFor="currentPassword" className="text-sm text-muted-foreground">
-                          Current Password
-                        </Label>
-                        <div className="relative mt-2">
-                          <Input
-                            id="currentPassword"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="rounded-xl border-border/50 pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-medium text-foreground flex items-center gap-1.5">Password <InfoTooltip text="Change your account login password" size="md" /></h3>
+                        {pwStep === "idle" && (
+                          <Button variant="outline" className="rounded-full" onClick={handleSendOtp} disabled={pwLoading || !userEmail}>
+                            {pwLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Change Password
+                          </Button>
+                        )}
+                        {pwStep !== "idle" && (
+                          <Button variant="ghost" size="sm" onClick={handleCancelPasswordChange} className="text-muted-foreground">
+                            Cancel
+                          </Button>
+                        )}
                       </div>
-                      <Button variant="outline" className="mt-4 rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                        Change Password
-                      </Button>
+
+                      {/* OTP Step */}
+                      {pwStep === "otp-sent" && (
+                        <div className="space-y-4 p-4 rounded-xl border border-border bg-muted/30">
+                          <p className="text-sm text-muted-foreground">
+                            Enter the 6-digit code sent to <span className="font-medium text-foreground">{userEmail}</span>
+                          </p>
+                          <div className="flex justify-center">
+                            <InputOTP maxLength={6} value={pwOtp} onChange={setPwOtp} disabled={pwLoading}>
+                              <InputOTPGroup>
+                                <InputOTPSlot index={0} />
+                                <InputOTPSlot index={1} />
+                                <InputOTPSlot index={2} />
+                                <InputOTPSlot index={3} />
+                                <InputOTPSlot index={4} />
+                                <InputOTPSlot index={5} />
+                              </InputOTPGroup>
+                            </InputOTP>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => { if (resendCooldown === 0) handleSendOtp(); }}
+                              disabled={resendCooldown > 0}
+                              className={`text-sm ${resendCooldown > 0 ? "text-muted-foreground" : "text-primary hover:underline"}`}
+                            >
+                              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
+                            </button>
+                            <Button onClick={handleVerifyOtp} disabled={pwOtp.length !== 6 || pwLoading} className="rounded-full">
+                              {pwLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                              Verify
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* New Password Step */}
+                      {pwStep === "new-password" && (
+                        <div className="space-y-4 p-4 rounded-xl border border-border bg-muted/30">
+                          <div>
+                            <Label className="text-sm text-muted-foreground">New Password</Label>
+                            <div className="relative mt-1">
+                              <Input
+                                type={showPwNew ? "text" : "password"}
+                                value={pwNew}
+                                onChange={(e) => setPwNew(e.target.value)}
+                                placeholder="Enter new password"
+                                className="rounded-xl border-border/50 pr-10"
+                                disabled={pwLoading}
+                              />
+                              <button type="button" onClick={() => setShowPwNew(!showPwNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                {showPwNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Min 8 chars, uppercase, lowercase, digit, and special char</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm text-muted-foreground">Confirm Password</Label>
+                            <div className="relative mt-1">
+                              <Input
+                                type={showPwConfirm ? "text" : "password"}
+                                value={pwConfirm}
+                                onChange={(e) => setPwConfirm(e.target.value)}
+                                placeholder="Confirm new password"
+                                className="rounded-xl border-border/50 pr-10"
+                                disabled={pwLoading}
+                              />
+                              <button type="button" onClick={() => setShowPwConfirm(!showPwConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                {showPwConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button onClick={handleResetPassword} disabled={!pwNew || !pwConfirm || pwLoading} className="rounded-full">
+                              {pwLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                              Set Password
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-6 border-t border-border">
-                      <h3 className="font-medium text-foreground mb-4">Multi-factor authentication (MFA)</h3>
+                      <h3 className="font-medium text-foreground mb-4 flex items-center gap-1.5">Multi-factor authentication (MFA) <InfoTooltip text="Add extra layers of security to protect your account" size="md" /></h3>
 
-                      <div className="space-y-4">
+                      <div className="space-y-4 opacity-50">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium text-foreground">Authenticator app</p>
                             <p className="text-sm text-muted-foreground">Use authenticator app for 2-step verification</p>
                           </div>
-                          <Switch />
+                          <span className="text-sm font-medium text-muted-foreground">Coming soon</span>
                         </div>
 
                         <div className="flex items-center justify-between">
@@ -570,48 +790,20 @@ const Settings = () => {
                             <p className="font-medium text-foreground">Push notification</p>
                             <p className="text-sm text-muted-foreground">Approve sign-ins and verify in multi factor auth</p>
                           </div>
-                          <Switch />
+                          <span className="text-sm font-medium text-muted-foreground">Coming soon</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="pt-6 border-t border-border">
-                      <h3 className="font-medium text-foreground mb-4">Session Management</h3>
+                      <h3 className="font-medium text-foreground mb-4 flex items-center gap-1.5">Session Management <InfoTooltip text="Control active login sessions across your devices" size="md" /></h3>
 
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-foreground">Log out</p>
-                            <p className="text-sm text-muted-foreground">Sign out of your current session</p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full"
-                            onClick={handleLogout}
-                          >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Log out
-                          </Button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between opacity-50">
                           <div>
                             <p className="font-medium text-foreground">Log out of All Devices</p>
-                            <p className="text-sm text-muted-foreground">
-                              Log out of all sessions on all devices including your current session.
-                              <br />It may take ~30 mins for other devices to be logged out.
-                            </p>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
-                            onClick={handleLogout}
-                          >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Log out all
-                          </Button>
+                          <span className="text-sm font-medium text-muted-foreground">Coming soon</span>
                         </div>
                       </div>
                     </div>
@@ -622,6 +814,40 @@ const Settings = () => {
           </div>
         </main>
       </div>
+
+      {/* Onboarding popup for Account/Security tabs */}
+      {showOnboardingPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-2xl border border-border shadow-xl p-6 max-w-md mx-4 animate-fade-in">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-6 h-6 text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Complete Your Onboarding</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Complete the onboarding process to access Account and Security settings.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => navigate('/onboarding')}
+                    className="flex-1 rounded-full"
+                  >
+                    Complete Onboarding
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowOnboardingPopup(false)}
+                    className="rounded-full"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   );
 };

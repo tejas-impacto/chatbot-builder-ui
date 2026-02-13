@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import {
   Select,
   SelectContent,
@@ -46,8 +47,41 @@ const industries = ["HealthTech", "Technology", "Finance", "Design", "Education"
 const services = ["SaaS", "Consulting", "E-commerce", "Healthcare", "FinTech", "EdTech"];
 const customerTypes = ["B2B", "B2C", "Both"];
 const companySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
-const countries = ["India", "USA", "UK", "Germany", "Australia", "Canada", "Other"];
-const regions = ["North America", "Europe", "Asia Pacific", "Middle East", "Africa", "Latin America"];
+const countries = [
+  "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+  "Bahrain", "Bangladesh", "Belarus", "Belgium", "Bolivia", "Bosnia and Herzegovina", "Brazil", "Brunei", "Bulgaria",
+  "Cambodia", "Cameroon", "Canada", "Chile", "China", "Colombia", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+  "Denmark", "Dominican Republic",
+  "Ecuador", "Egypt", "El Salvador", "Estonia", "Ethiopia",
+  "Finland", "France",
+  "Georgia", "Germany", "Ghana", "Greece", "Guatemala",
+  "Honduras", "Hong Kong", "Hungary",
+  "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+  "Jamaica", "Japan", "Jordan",
+  "Kazakhstan", "Kenya", "Kuwait", "Kyrgyzstan",
+  "Latvia", "Lebanon", "Libya", "Lithuania", "Luxembourg",
+  "Macau", "Malaysia", "Maldives", "Malta", "Mexico", "Moldova", "Mongolia", "Morocco", "Myanmar",
+  "Nepal", "Netherlands", "New Zealand", "Nigeria", "North Macedonia", "Norway",
+  "Oman",
+  "Pakistan", "Palestine", "Panama", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+  "Qatar",
+  "Romania", "Russia", "Rwanda",
+  "Saudi Arabia", "Senegal", "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sweden", "Switzerland", "Syria",
+  "Taiwan", "Tanzania", "Thailand", "Tunisia", "Turkey", "Turkmenistan",
+  "UAE", "Uganda", "UK", "Ukraine", "Uruguay", "USA", "Uzbekistan",
+  "Venezuela", "Vietnam",
+  "Yemen",
+  "Zambia", "Zimbabwe",
+  "Global", "Other",
+];
+const regions = [
+  "North America", "Central America", "South America", "Latin America",
+  "Western Europe", "Eastern Europe", "Northern Europe", "Southern Europe",
+  "East Asia", "South Asia", "Southeast Asia", "Central Asia", "Asia Pacific",
+  "Middle East", "North Africa", "Sub-Saharan Africa", "Africa",
+  "Caribbean", "Oceania",
+  "Global",
+];
 const interactionVolumes = ["Less than 100", "100-500", "500-1000", "1000-5000", "5000+"];
 
 // Map query types to their keys in the TypicalCustomerQueries interface
@@ -94,14 +128,16 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
     <div className="space-y-8 animate-fade-in">
       {/* Section 1: Brand Identity */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Brand Identity
+          <InfoTooltip text="Basic information about your company and brand" size="md" />
         </h2>
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="companyName" className="text-sm font-semibold text-foreground">
+            <Label htmlFor="companyName" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Company Name <span className="text-destructive">*</span>
+              <InfoTooltip text="Your official registered company name" />
             </Label>
             <Input
               id="companyName"
@@ -113,8 +149,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="brandName" className="text-sm font-semibold text-foreground">
+            <Label htmlFor="brandName" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Brand Name <span className="text-destructive">*</span>
+              <InfoTooltip text="The name your customers know you by" />
             </Label>
             <Input
               id="brandName"
@@ -127,8 +164,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Industry <span className="text-destructive">*</span>
+            <InfoTooltip text="Your business sector — helps tailor agent responses" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {industries.map((industry) => (
@@ -157,8 +195,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="companyWebsite" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="companyWebsite" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Website URL
+            <InfoTooltip text="Your company website — we can auto-fill details from it" />
           </Label>
           <div className="relative">
             <Input
@@ -182,8 +221,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="businessDescription" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="businessDescription" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Tell us about your business <span className="text-destructive">*</span>
+            <InfoTooltip text="A brief description to help your agent understand your business" />
           </Label>
           <Textarea
             id="businessDescription"
@@ -201,13 +241,15 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
 
       {/* Section 2: Target Market */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Target Market & Services
+          <InfoTooltip text="Define your audience and service offerings" size="md" />
         </h2>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             What services do you offer? <span className="text-destructive">*</span>
+            <InfoTooltip text="Select the types of services your business provides" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {services.map((service) => (
@@ -228,8 +270,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Who are your customers? <span className="text-destructive">*</span>
+            <InfoTooltip text="Whether you serve businesses, consumers, or both" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {customerTypes.map((type) => (
@@ -251,8 +294,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-foreground">
+            <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Primary Market <span className="text-destructive">*</span>
+              <InfoTooltip text="The main country where your customers are located" />
             </Label>
             <Select value={data.country} onValueChange={(v) => onChange({ country: v })}>
               <SelectTrigger className="onboarding-input">
@@ -268,8 +312,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-foreground">
+            <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Region
+              <InfoTooltip text="The geographic region your business primarily operates in" />
             </Label>
             <Select value={data.region} onValueChange={(v) => onChange({ region: v })}>
               <SelectTrigger className="onboarding-input">
@@ -287,8 +332,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Team Size <span className="text-destructive">*</span>
+            <InfoTooltip text="The number of employees in your organization" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {companySizes.map((size) => (
@@ -311,13 +357,15 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
 
       {/* Section 3: Customer Interactions */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Customer Interactions
+          <InfoTooltip text="Details about how customers interact with your business" size="md" />
         </h2>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Monthly Customer Interactions <span className="text-destructive">*</span>
+            <InfoTooltip text="Approximate number of customer inquiries you receive each month" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {interactionVolumes.map((volume) => (
@@ -338,8 +386,9 @@ const CompanyProfileStep = ({ data, onChange, onWebsiteScrape, isScrapingWebsite
         </div>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Typical Customer Queries <span className="text-destructive">*</span>
+            <InfoTooltip text="Common topics your customers ask about — helps train the agent" />
           </Label>
           <p className="text-xs text-muted-foreground">Select all that apply</p>
           <div className="flex flex-wrap gap-2">

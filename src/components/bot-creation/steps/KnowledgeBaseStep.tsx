@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { BotCreationData } from "@/pages/BotCreation";
 
 interface KnowledgeBaseStepProps {
@@ -11,8 +12,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Bot Overview
+          <InfoTooltip text="A brief summary of what your agent does and who it serves" />
         </Label>
         <Textarea
           placeholder="Enter Bot Overview"
@@ -23,8 +25,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Product / Service Features
+          <InfoTooltip text="Key features your agent should know about your products or services" />
         </Label>
         <Textarea
           placeholder="Enter key features"
@@ -35,8 +38,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Common FAQs
+          <InfoTooltip text="Frequently asked questions your agent should be prepared to answer" />
         </Label>
         <Textarea
           placeholder="Enter Common FAQs"

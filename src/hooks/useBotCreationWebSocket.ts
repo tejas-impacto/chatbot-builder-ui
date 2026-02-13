@@ -14,6 +14,15 @@ export interface BotConfig {
   persona: string;
   tone_of_voice: string;
   agent_name: string;
+  lead_capture?: {
+    is_lead_capture_required: boolean;
+  };
+  configuration?: {
+    company_overview?: string;
+    product_features?: string;
+    customer_faqs?: string;
+    service_guidelines?: string;
+  };
 }
 
 export interface StatusDetails {

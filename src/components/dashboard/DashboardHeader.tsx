@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Search,
   Bell,
-  Sun,
-  Moon,
   Bot,
   Mic,
   Loader2,
@@ -21,7 +19,6 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getValidAccessToken } from "@/lib/auth";
@@ -131,8 +128,6 @@ interface SearchResult {
 const DashboardHeader = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>("");
 
   // Search state
@@ -148,7 +143,6 @@ const DashboardHeader = () => {
 
   useEffect(() => {
     const storedTenantId = localStorage.getItem('tenantId');
-    setTenantId(storedTenantId);
 
     // Fetch company name and bots
     const fetchData = async () => {
@@ -496,28 +490,6 @@ const DashboardHeader = () => {
               </div>
             </PopoverContent>
           </Popover>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </Button>
-
-          <div className="flex items-center gap-3 pl-4 border-l border-border">
-            <Avatar className="w-9 h-9">
-              <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback>{companyName ? companyName.charAt(0).toUpperCase() : 'C'}</AvatarFallback>
-            </Avatar>
-            <div className="hidden lg:block">
-              <p className="text-sm font-medium text-foreground">{companyName || 'Company'}</p>
-              {tenantId && (
-                <p className="text-xs text-muted-foreground">ID: {tenantId}</p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </header>

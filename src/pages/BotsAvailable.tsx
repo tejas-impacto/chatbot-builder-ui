@@ -10,6 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { getBotsByTenant, updateBot, type Bot as BotType } from "@/lib/botApi";
 import { SessionExpiredError, logout } from "@/lib/auth";
+import { useBotCreation } from "@/contexts/BotCreationContext";
 
 const BotsAvailable = () => {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ const BotsAvailable = () => {
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [togglingBotId, setTogglingBotId] = useState<string | null>(null);
+  const { status: creationStatus, session: creationSession } = useBotCreation();
+  const creatingBotId = (creationStatus !== 'idle' && creationStatus !== 'completed' && creationStatus !== 'error') ? creationSession?.botId : null;
 
   // Determine view type based on route
   const getViewType = (): 'all' | 'voice' | 'chat' => {
@@ -121,6 +124,7 @@ const BotsAvailable = () => {
           botId: bot.botId,
           botName: bot.agentName,
           tenantId: tenantId,
+          showLeadForm: bot.leadCaptureRequired ?? false,
         },
       });
     } else {
@@ -130,7 +134,7 @@ const BotsAvailable = () => {
           botId: bot.botId,
           chatbotName: bot.agentName,
           tenantId: tenantId,
-          showLeadForm: true,
+          showLeadForm: bot.leadCaptureRequired ?? false,
           demoMode: false,
         },
       });
@@ -164,6 +168,12 @@ const BotsAvailable = () => {
         agentName: bot.agentName,
         toneOfVoice: bot.toneOfVoice || 'professional',
         isActive: !bot.active,
+        is_lead_capture_required: bot.leadCaptureRequired,
+        leadNameRequired: bot.nameRequired || false,
+        leadPhoneRequired: bot.phoneRequired || false,
+        leadEmailRequired: bot.emailRequired || false,
+        leadCompanyRequired: bot.companyRequired || false,
+        salesIntentPriority: bot.salesIntentPriority,
       });
 
       // Update local state
@@ -295,21 +305,21 @@ const BotsAvailable = () => {
 
             {/* Bots Grid */}
             {!loading && !error && filteredBots.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-6">
                 {filteredBots.map((bot) => (
                   <Card
                     key={bot.botId}
-                    className="border-border/50 shadow-sm hover:shadow-xl hover:border-primary/30 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer overflow-hidden"
+                    className="group border-border/50 shadow-md hover:shadow-xl hover:border-primary/30 hover:bg-primary hover:-translate-y-1.5 transition-all duration-300 cursor-pointer overflow-hidden"
                     onClick={() => handleBotClick(bot)}
                   >
                     <CardContent className="p-0 aspect-[4/5] flex flex-col">
-                      {/* Top bar: Active toggle + Settings */}
-                      <div className="flex items-center justify-end gap-1 px-3 pt-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Top bar: Active toggle (left) + Settings (right) */}
+                      <div className="flex items-center justify-between px-3 pt-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           {togglingBotId === bot.botId ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground group-hover:text-primary-foreground/70" />
                           ) : (
-                            <span className={`text-[10px] ${bot.active ? 'text-green-600' : 'text-muted-foreground'}`}>
+                            <span className={`text-[10px] transition-colors duration-300 ${bot.active ? 'text-green-600 group-hover:text-green-300' : 'text-muted-foreground group-hover:text-primary-foreground/60'}`}>
                               {bot.active ? 'Active' : 'Inactive'}
                             </span>
                           )}
@@ -324,7 +334,7 @@ const BotsAvailable = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary group-hover:text-primary-foreground/70 group-hover:hover:text-primary-foreground transition-colors duration-300"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditBot(bot);
@@ -338,39 +348,49 @@ const BotsAvailable = () => {
                       {/* Centered content */}
                       <div className="flex flex-col items-center flex-1 px-4 pb-4">
                         <div className="flex flex-col items-center flex-1 justify-center">
-                          <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
+                          <div className="w-20 h-20 rounded-2xl bg-primary/10 group-hover:bg-primary-foreground/20 flex items-center justify-center mb-3 transition-colors duration-300">
                             {bot.channelType === 'VOICE' ? (
-                              <Mic className="w-10 h-10 text-primary" />
+                              <Mic className="w-10 h-10 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
                             ) : (
-                              <Bot className="w-10 h-10 text-primary" />
+                              <Bot className="w-10 h-10 text-primary group-hover:text-primary-foreground transition-colors duration-300" />
                             )}
                           </div>
 
-                          <h3 className="font-semibold text-foreground text-center text-sm line-clamp-2 leading-tight">
+                          <h3 className="font-semibold text-foreground group-hover:text-primary-foreground text-center text-sm line-clamp-2 leading-tight transition-colors duration-300">
                             {bot.agentName}
                           </h3>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground group-hover:text-primary-foreground/70 transition-colors duration-300">
                             {bot.channelType === 'VOICE' ? 'Voice Agent' : 'Chat Agent'}
                           </p>
                           {bot.purposeCategory && (
-                            <p className="text-xs text-muted-foreground mt-1.5">
-                              Purpose: <span className="text-foreground">{bot.purposeCategory}</span>
+                            <p className="text-xs text-muted-foreground group-hover:text-primary-foreground/70 mt-1.5 transition-colors duration-300">
+                              Purpose: <span className="text-foreground group-hover:text-primary-foreground transition-colors duration-300">{bot.purposeCategory}</span>
                             </p>
                           )}
-                          <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mt-1">
+                          <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground group-hover:text-primary-foreground/60 mt-1 transition-colors duration-300">
                             <Calendar className="w-3 h-3" />
                             <span>{formatDate(bot.createdAt)}</span>
                           </div>
                         </div>
 
-                        {/* Try Bot */}
+                        {/* Try Bot - inverts on card hover, locked during creation */}
                         <Button
                           onClick={(e) => handleTryBot(bot, e)}
-                          className="w-full rounded-full mt-auto"
+                          disabled={bot.botId === creatingBotId}
+                          className="w-full rounded-full mt-auto bg-primary text-primary-foreground group-hover:bg-primary-foreground group-hover:text-primary transition-colors duration-300"
                           size="sm"
                         >
-                          <Play className="w-3.5 h-3.5 mr-1.5" />
-                          Try Bot
+                          {bot.botId === creatingBotId ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                              Setting up...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 mr-1.5" />
+                              Try Bot
+                            </>
+                          )}
                         </Button>
                       </div>
                     </CardContent>

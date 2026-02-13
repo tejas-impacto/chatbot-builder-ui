@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Loader2, SkipForward } from "lucide-react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Bot, Check, Loader2, SkipForward } from "lucide-react";
 import OnboardingStepIndicator from "@/components/onboarding/OnboardingStepIndicator";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken } from "@/lib/auth";
@@ -61,7 +61,6 @@ interface OnboardingData {
   enableLeadCapture: boolean;
   captureFields: string[];
   salesPriority: string;
-  handoffMethod: string;
   escalationPreference: string;
   communicationStyle: string;
   brandAdjectives: string[];
@@ -110,7 +109,6 @@ const initialData: OnboardingData = {
   enableLeadCapture: true,
   captureFields: ["name", "email", "phone"],
   salesPriority: "High",
-  handoffMethod: "Email",
   escalationPreference: "Phone",
   communicationStyle: "Semi-formal",
   brandAdjectives: [],
@@ -292,8 +290,7 @@ IMPORTANT:
                       company: { type: "boolean" }
                     }
                   },
-                  sales_intent_priority: { type: "string", enum: ["High", "Medium", "Low"] },
-                  sales_handoff_method: { type: "string", enum: ["Call", "CRM", "Email", "Webhook"] }
+                  sales_intent_priority: { type: "string", enum: ["High", "Medium", "Low"] }
                 }
               },
               default_business_tone: {
@@ -338,20 +335,36 @@ IMPORTANT:
             'United Kingdom': 'UK',
             'Britain': 'UK',
             'Great Britain': 'UK',
+            'United Arab Emirates': 'UAE',
+            'Republic of Korea': 'South Korea',
+            'Korea': 'South Korea',
           };
           return countryMap[country] || country;
         };
 
         const mapRegion = (region: string): string => {
           const regionLower = region.toLowerCase();
-          if (regionLower.includes('north america') || regionLower.includes('northeast') || regionLower.includes('new england')) {
-            return 'North America';
-          }
-          if (regionLower.includes('europe')) return 'Europe';
+          if (regionLower === 'all' || regionLower === 'global' || regionLower === 'worldwide') return 'Global';
+          if (regionLower.includes('north america')) return 'North America';
+          if (regionLower.includes('central america')) return 'Central America';
+          if (regionLower.includes('south america')) return 'South America';
+          if (regionLower.includes('latin')) return 'Latin America';
+          if (regionLower.includes('western europe')) return 'Western Europe';
+          if (regionLower.includes('eastern europe')) return 'Eastern Europe';
+          if (regionLower.includes('northern europe') || regionLower.includes('scandinavia')) return 'Northern Europe';
+          if (regionLower.includes('southern europe')) return 'Southern Europe';
+          if (regionLower.includes('europe')) return 'Western Europe';
+          if (regionLower.includes('east asia')) return 'East Asia';
+          if (regionLower.includes('south asia')) return 'South Asia';
+          if (regionLower.includes('southeast asia')) return 'Southeast Asia';
+          if (regionLower.includes('central asia')) return 'Central Asia';
           if (regionLower.includes('asia') || regionLower.includes('pacific')) return 'Asia Pacific';
           if (regionLower.includes('middle east')) return 'Middle East';
+          if (regionLower.includes('north africa')) return 'North Africa';
+          if (regionLower.includes('sub-saharan') || regionLower.includes('subsaharan')) return 'Sub-Saharan Africa';
           if (regionLower.includes('africa')) return 'Africa';
-          if (regionLower.includes('latin') || regionLower.includes('south america')) return 'Latin America';
+          if (regionLower.includes('caribbean')) return 'Caribbean';
+          if (regionLower.includes('oceania') || regionLower.includes('australasia')) return 'Oceania';
           return region;
         };
 
@@ -527,9 +540,6 @@ IMPORTANT:
           if (isValidValue(leadContext.sales_intent_priority)) {
             updates.salesPriority = leadContext.sales_intent_priority;
           }
-          if (isValidValue(leadContext.sales_handoff_method)) {
-            updates.handoffMethod = leadContext.sales_handoff_method;
-          }
           if (leadContext.mandatory_lead_fields) {
             const fields: string[] = [];
             if (leadContext.mandatory_lead_fields.name) fields.push('name');
@@ -666,15 +676,6 @@ IMPORTANT:
         iso27001: formData.regulations.includes("ISO 27001"),
         restrictedTopics: formData.restrictedTopics,
         mustNotInstructions: formData.botRestrictions,
-        isLeadCaptureRequired: formData.enableLeadCapture,
-        mandatoryLeadFields: {
-          name: formData.captureFields.includes("name"),
-          phone: formData.captureFields.includes("phone"),
-          email: formData.captureFields.includes("email"),
-          company: formData.captureFields.includes("company"),
-        },
-        salesIntentPriority: formData.salesPriority,
-        salesHandoffMethod: formData.handoffMethod,
         communicationStyle: formData.communicationStyle,
         brandAdjectives: formData.brandAdjectives,
         wordsToAvoid: formData.wordsToAvoid,
@@ -842,10 +843,6 @@ IMPORTANT:
               regulations: formData.regulations,
               restrictedTopics: formData.restrictedTopics,
               botRestrictions: formData.botRestrictions,
-              enableLeadCapture: formData.enableLeadCapture,
-              captureFields: formData.captureFields,
-              salesPriority: formData.salesPriority,
-              handoffMethod: formData.handoffMethod,
               escalationPreference: formData.escalationPreference,
               communicationStyle: formData.communicationStyle,
               brandAdjectives: formData.brandAdjectives,
@@ -875,8 +872,19 @@ IMPORTANT:
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="flex items-center px-6 py-4 border-b border-border">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="relative">
+            <Bot className="w-8 h-8 text-foreground" />
+            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-pink rounded-full" />
+          </div>
+          <span className="text-lg font-bold text-primary">Agent Builder</span>
+        </Link>
+      </header>
+
       {/* Step Indicator */}
-      <div className="border-b border-border bg-card/50">
+      <div className="bg-card/50">
         <div className="max-w-3xl mx-auto">
           <OnboardingStepIndicator steps={steps} currentStep={currentStep} />
         </div>
@@ -884,7 +892,7 @@ IMPORTANT:
 
       {/* Main Content - Centered Single Column */}
       <div className="max-w-3xl mx-auto px-4 py-8 mt-8">
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-8 lg:p-10">
+        <div className="bg-card rounded-2xl border border-border shadow-md p-8 lg:p-10">
           <div className="mb-8">
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
               {stepTitles[currentStep - 1]}

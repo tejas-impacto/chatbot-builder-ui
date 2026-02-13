@@ -1,6 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { BotCreationData } from "@/pages/BotCreation";
 import { Headphones, HelpCircle, Megaphone, Star } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 
 interface PurposeCategoryStepProps {
   data: BotCreationData;
@@ -43,8 +44,9 @@ const PurposeCategoryStep = ({ data, onChange, errors }: PurposeCategoryStepProp
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Select Purpose <span className="text-destructive">*</span>
+          <InfoTooltip text="Choose the primary function your agent will perform" />
         </Label>
         <div className={`grid grid-cols-4 gap-4 ${errors?.purpose ? 'rounded-xl ring-1 ring-destructive p-1' : ''}`}>
           {purposeOptions.map((option) => {

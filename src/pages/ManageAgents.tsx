@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Bot, Mic, ArrowRight } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
@@ -43,8 +44,8 @@ const ManageAgents = () => {
           <div className="p-6">
             {/* Page Header */}
             <div className="text-center mb-12">
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Manage Your AI Agents
+              <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center justify-center gap-2">
+                Manage Your AI Agents <InfoTooltip text="Create and configure your AI chat and voice agents" size="md" />
               </h1>
               <p className="text-muted-foreground text-lg">
                 Select the type of agent you want to manage
@@ -68,8 +69,9 @@ const ManageAgents = () => {
                       </div>
 
                       {/* Title */}
-                      <h2 className="text-2xl font-bold text-foreground mb-3">
+                      <h2 className="text-2xl font-bold text-foreground mb-3 flex items-center gap-2">
                         {agent.title}
+                        <InfoTooltip text={agent.description} size="md" />
                       </h2>
 
                       {/* Description */}

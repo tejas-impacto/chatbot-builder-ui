@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Upload, Search, FileText, Eye, Loader2 } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
@@ -350,7 +351,7 @@ const BusinessDataManagement = () => {
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Business Data Management</h1>
+                <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">Business Data Management <InfoTooltip text="Upload and manage documents that train your AI agents" size="md" /></h1>
                 <p className="text-muted-foreground">Manage your knowledge base and training data</p>
               </div>
               <Button
@@ -416,7 +417,7 @@ const BusinessDataManagement = () => {
             {/* Uploaded Files */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-foreground">Uploaded Files</h2>
+                <h2 className="text-xl font-semibold text-foreground flex items-center gap-1.5">Uploaded Files <InfoTooltip text="Documents uploaded to your knowledge base for agent training" size="md" /></h2>
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -445,7 +446,7 @@ const BusinessDataManagement = () => {
                   {filteredFiles.map((file) => (
                     <div
                       key={file.id}
-                      className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
+                      className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-md transition-all bg-background"
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>

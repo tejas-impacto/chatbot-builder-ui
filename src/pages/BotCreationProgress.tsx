@@ -1,189 +1,82 @@
-import { useState, useCallback } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Check, X, Loader2 } from "lucide-react";
+import { MessageSquare, Check, X, Loader2, Minimize2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useBotCreationWebSocket, type ProgressData, type StatusDetails, type ClarificationRequest } from "@/hooks/useBotCreationWebSocket";
 import { ClarificationQuestionDialog } from "@/components/bot-creation/ClarificationQuestionDialog";
-import { cancelBotCreation, deleteBot } from "@/lib/botApi";
-import { SessionExpiredError, logout } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
-
-interface BotConfig {
-  company_overview: string;
-  product_features: string;
-  customer_faqs: string;
-  conversation_style: {
-    chat_length: string;
-    chat_guidelines: string;
-    voice_length: string;
-    voice_guidelines: string;
-  };
-  purpose_category: string;
-  persona: string;
-  tone_of_voice: string;
-  agent_name: string;
-  channelType?: 'VOICE' | 'TEXT';
-}
-
-interface LocationState {
-  botId?: string;
-  ticket?: string;
-  sessionId?: string;
-  agentName?: string;
-  tenantId?: string;
-  documentsUploaded?: number;
-  botConfig?: BotConfig;
-  // Legacy fields for backwards compatibility
-  sessionToken?: string;
-  chatbotName?: string;
-  demoMode?: boolean;
-}
+import { useBotCreation } from "@/contexts/BotCreationContext";
 
 const BotCreationProgress = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { toast } = useToast();
-  const state = (location.state as LocationState) || {};
 
-  // Get botId from state
-  const botId = state.botId || "";
-  const ticket = state.ticket || "";
-  const agentName = state.agentName || state.chatbotName || "AI Agent";
-  const tenantId = state.tenantId || localStorage.getItem('tenantId') || "";
-  const hasWebSocketConnection = !!(state.botId && state.ticket);
-  const botConfig = state.botConfig || null;
+  const {
+    status,
+    isConnected,
+    isMinimized,
+    progress,
+    currentMessage,
+    stageDisplay,
+    stageIcon,
+    statusDetails,
+    error,
+    session,
+    clarificationRequest,
+    isCancelling,
+    isSubmittingAnswer,
+    expand,
+    setExpanded,
+    minimize,
+    dismiss,
+    cancelSession,
+    sendClarificationResponse,
+  } = useBotCreation();
 
-  const [isComplete, setIsComplete] = useState(false);
-  const [currentProgress, setCurrentProgress] = useState(0);
-  const [currentStatus, setCurrentStatus] = useState("Initializing...");
-  const [stageDisplay, setStageDisplay] = useState("Getting Started");
-  const [stageIcon, setStageIcon] = useState("🚀");
-  const [statusDetails, setStatusDetails] = useState<StatusDetails | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isCancelling, setIsCancelling] = useState(false);
+  const agentName = session?.agentName || "AI Agent";
+  const botId = session?.botId || "";
+  const botConfig = session?.botConfig || null;
+  const tenantId = session?.tenantId || "";
 
-  // Clarification question state
-  const [clarificationRequest, setClarificationRequest] = useState<ClarificationRequest | null>(null);
-  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
-
-  // WebSocket progress handler
-  const handleProgress = useCallback((data: ProgressData) => {
-    setCurrentProgress(data.progress);
-    setCurrentStatus(data.message);
-    setStageDisplay(data.stageDisplay);
-    setStageIcon(data.stageIcon);
-    setStatusDetails(data.details || null);
-  }, []);
-
-  // WebSocket complete handler
-  const handleComplete = useCallback(() => {
-    setCurrentProgress(100);
-    setCurrentStatus("Complete!");
-    setStageDisplay("All Done!");
-    setStageIcon("🎉");
-    setIsComplete(true);
-  }, []);
-
-  // WebSocket error handler
-  const handleError = useCallback((err: string) => {
-    setError(err);
-    toast({
-      title: "Error",
-      description: err,
-      variant: "destructive",
-    });
-  }, [toast]);
-
-  // Clarification request handler
-  const handleClarificationRequest = useCallback((data: ClarificationRequest) => {
-    setClarificationRequest(data);
-    // Update stage display to show we're waiting for input
-    setStageDisplay("Clarification Needed");
-    setStageIcon("💬");
-    setCurrentStatus("Please answer the questions to continue");
-  }, []);
-
-  // Connect to WebSocket if we have the necessary data
-  const { isConnected, sendClarificationResponse } = useBotCreationWebSocket(
-    hasWebSocketConnection ? botId : null,
-    hasWebSocketConnection ? ticket : null,
-    botConfig,
-    handleProgress,
-    handleComplete,
-    handleError,
-    handleClarificationRequest
-  );
-
-  // Handle clarification answer submission
-  const handleSubmitClarificationAnswer = useCallback((answers: Record<string, string>) => {
-    setIsSubmittingAnswer(true);
-    sendClarificationResponse(answers);
-
-    // Clear the clarification request and resume normal display
-    setClarificationRequest(null);
-    setIsSubmittingAnswer(false);
-    setStageDisplay("Processing...");
-    setStageIcon("⏳");
-    setCurrentStatus("Processing your answers...");
-  }, [sendClarificationResponse]);
-
-  // Cancel bot creation and delete the bot
-  const handleCancel = async () => {
-    if (!botId) {
-      navigate('/dashboard');
-      return;
+  // On mount, mark as expanded (not minimized) without re-navigating
+  useEffect(() => {
+    if (status !== 'idle' && isMinimized) {
+      setExpanded();
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    setIsCancelling(true);
-    try {
-      // First cancel the bot creation session
-      await cancelBotCreation(botId);
-
-      // Then delete the bot completely
-      if (tenantId) {
-        await deleteBot(botId, tenantId);
-      }
-
-      toast({
-        title: "Cancelled",
-        description: "Bot creation has been cancelled and bot deleted.",
-      });
-      navigate('/dashboard');
-    } catch (e) {
-      // Handle session expiration gracefully
-      if (e instanceof SessionExpiredError) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        });
-        logout();
-        return;
-      }
-      console.error('Failed to cancel:', e);
-      // Navigate anyway
-      navigate('/dashboard');
+  // If no active session, redirect to dashboard
+  useEffect(() => {
+    if (status === 'idle') {
+      navigate('/dashboard', { replace: true });
     }
+  }, [status, navigate]);
+
+  if (status === 'idle') {
+    return null;
+  }
+
+  const handleMinimize = () => {
+    minimize();
+    navigate('/dashboard');
   };
 
   // Navigate to appropriate interface based on bot type
   const handleStartChatting = () => {
-    const isVoiceBot = botConfig?.channelType === 'VOICE';
+    const isVoiceBot = (botConfig as any)?.channelType === 'VOICE';
     const targetRoute = isVoiceBot ? "/manage-voicebot" : "/manage-chatbot";
 
+    dismiss();
     navigate(targetRoute, {
       state: {
         botId: botId,
         chatbotName: agentName,
         tenantId,
-        showLeadForm: true,
+        showLeadForm: botConfig?.lead_capture?.is_lead_capture_required ?? false,
       },
     });
   };
 
   // Success screen
-  if (isComplete) {
+  if (status === 'completed') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md px-6">
@@ -194,7 +87,7 @@ const BotCreationProgress = () => {
 
           {/* Success Message */}
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            {botConfig?.channelType === 'VOICE' ? 'Voice Bot' : 'Chatbot'} Created Successfully!
+            {(botConfig as any)?.channelType === 'VOICE' ? 'Voice Bot' : 'Chatbot'} Created Successfully!
           </h1>
           <p className="text-muted-foreground mb-8">
             Your AI agent "{agentName}" is ready to go.
@@ -213,7 +106,7 @@ const BotCreationProgress = () => {
   }
 
   // Error screen
-  if (error) {
+  if (status === 'error') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md px-6">
@@ -234,13 +127,13 @@ const BotCreationProgress = () => {
           <div className="flex gap-4 justify-center">
             <Button
               variant="outline"
-              onClick={() => navigate('/bot-creation')}
+              onClick={() => { dismiss(); navigate('/bot-creation'); }}
               className="rounded-full px-6"
             >
               Try Again
             </Button>
             <Button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => { dismiss(); navigate('/dashboard'); }}
               className="rounded-full px-6"
             >
               Back to Dashboard
@@ -261,38 +154,46 @@ const BotCreationProgress = () => {
           </div>
           <span className="text-lg font-bold text-primary">Agent Builder</span>
         </Link>
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={isCancelling}
-          className="rounded-full"
-        >
-          {isCancelling ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Cancelling...
-            </>
-          ) : (
-            <>
-              <X className="w-4 h-4 mr-2" />
-              Cancel
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleMinimize}
+            className="rounded-full"
+          >
+            <Minimize2 className="w-4 h-4 mr-2" />
+            Minimize
+          </Button>
+          <Button
+            variant="outline"
+            onClick={cancelSession}
+            disabled={isCancelling}
+            className="rounded-full"
+          >
+            {isCancelling ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </>
+            )}
+          </Button>
+        </div>
       </header>
 
       {/* Progress Content */}
       <main className="flex items-center justify-center min-h-[calc(100vh-80px)] px-6">
         <div className="w-full max-w-md">
           {/* Connection Status */}
-          {hasWebSocketConnection && (
-            <div className="mb-6 text-center">
-              <span className={`inline-flex items-center gap-2 text-sm ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`}>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-muted-foreground animate-pulse'}`} />
-                {isConnected ? 'Connected' : 'Connecting...'}
-              </span>
-            </div>
-          )}
+          <div className="mb-6 text-center">
+            <span className={`inline-flex items-center gap-2 text-sm ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`}>
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-muted-foreground animate-pulse'}`} />
+              {isConnected ? 'Connected' : 'Connecting...'}
+            </span>
+          </div>
 
           {/* Dynamic Status Card */}
           <div className="bg-card rounded-2xl border border-border shadow-lg p-8">
@@ -308,9 +209,9 @@ const BotCreationProgress = () => {
 
             {/* Progress Bar */}
             <div className="mb-6">
-              <Progress value={currentProgress} className="h-3" />
+              <Progress value={progress} className="h-3" />
               <div className="flex justify-between mt-2">
-                <span className="text-sm text-muted-foreground">{currentProgress}%</span>
+                <span className="text-sm text-muted-foreground">{progress}%</span>
                 {statusDetails?.total && (
                   <span className="text-sm text-muted-foreground">
                     {statusDetails.completed || 0}/{statusDetails.total} chunks
@@ -321,7 +222,7 @@ const BotCreationProgress = () => {
 
             {/* Current Status Message */}
             <p className="text-center text-muted-foreground mb-4">
-              {currentStatus || "Creating your AI agent..."}
+              {currentMessage || "Creating your AI agent..."}
             </p>
 
             {/* Document Name (if available) */}
@@ -338,7 +239,7 @@ const BotCreationProgress = () => {
       <ClarificationQuestionDialog
         open={!!clarificationRequest}
         clarificationRequest={clarificationRequest}
-        onSubmit={handleSubmitClarificationAnswer}
+        onSubmit={sendClarificationResponse}
         isSubmitting={isSubmittingAnswer}
       />
     </div>

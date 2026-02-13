@@ -258,6 +258,7 @@ export const useVoiceChat = ({
               tenantId,
               botId,
               sessionId,
+              sessionToken: sessionTokenRef.current || undefined,
               firstName: leadInfoRef.current.firstName,
               lastName: leadInfoRef.current.lastName,
               email: leadInfoRef.current.email,

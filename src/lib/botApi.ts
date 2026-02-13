@@ -13,6 +13,14 @@ export interface CreateBotRequest {
   persona: string;
   agentName: string;
   toneOfVoice: string;
+  is_lead_capture_required?: boolean;
+  mandatoryLeadFields?: {
+    name: boolean;
+    phone: boolean;
+    email: boolean;
+    company: boolean;
+  };
+  salesIntentPriority?: string;
 }
 
 export interface CreateBotResponse {
@@ -120,6 +128,12 @@ export interface Bot {
   createdBy: string;
   updatedBy: string;
   active: boolean;
+  leadCaptureRequired?: boolean;
+  nameRequired?: boolean;
+  phoneRequired?: boolean;
+  emailRequired?: boolean;
+  companyRequired?: boolean;
+  salesIntentPriority?: string;
 }
 
 export interface GetBotsResponse {
@@ -212,7 +226,13 @@ export interface UpdateBotRequest {
   persona: string;
   agentName: string;
   toneOfVoice: string;
-  isActive: boolean;
+  isActive?: boolean;
+  is_lead_capture_required?: boolean;
+  leadNameRequired?: boolean;
+  leadPhoneRequired?: boolean;
+  leadEmailRequired?: boolean;
+  leadCompanyRequired?: boolean;
+  salesIntentPriority?: string;
 }
 
 export interface UpdateBotResponse {
@@ -236,6 +256,8 @@ export const updateBot = async (botId: string, data: UpdateBotRequest): Promise<
   if (!accessToken) {
     throw new Error('No access token available');
   }
+
+  console.log('updateBot payload:', JSON.stringify(data, null, 2));
 
   const response = await fetch(`/api/v1/bots/${botId}`, {
     method: 'PUT',
@@ -446,6 +468,7 @@ export interface CreateLeadRequest {
   tenantId: string;
   botId: string;
   sessionId?: string;
+  sessionToken?: string;
   firstName: string;
   lastName?: string;
   email: string;
@@ -469,20 +492,25 @@ export interface CreateLeadResponse {
  * @returns Created lead
  */
 export const createLead = async (leadData: CreateLeadRequest): Promise<CreateLeadResponse> => {
-  const accessToken = await getValidAccessToken();
-
-  if (!accessToken) {
-    throw new Error('No access token available');
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getValidAccessToken();
+  } catch {
+    // Auth not available - continue without it (for public/anonymous access)
   }
+
+  const { sessionToken, ...leadPayload } = leadData;
 
   const response = await fetch('/api/v1/leads/interactions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'accept': '*/*',
-      'Authorization': `Bearer ${accessToken}`,
+      'X-Tenant-Id': leadData.tenantId,
+      ...(sessionToken && { 'X-Session-Token': sessionToken }),
+      ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
     },
-    body: JSON.stringify(leadData),
+    body: JSON.stringify(leadPayload),
   });
 
   if (!response.ok) {
@@ -600,7 +628,8 @@ export const getLeadInteractions = async (
   tenantId: string,
   botId?: string,
   page: number = 0,
-  size: number = 20
+  size: number = 20,
+  search?: string
 ): Promise<GetLeadInteractionsResponse> => {
   const accessToken = await getValidAccessToken();
 
@@ -611,6 +640,9 @@ export const getLeadInteractions = async (
   let url = `/api/v1/leads/interactions?tenantId=${tenantId}&page=${page}&size=${size}`;
   if (botId) {
     url += `&botId=${botId}`;
+  }
+  if (search?.trim()) {
+    url += `&search=${encodeURIComponent(search.trim())}`;
   }
 
   const response = await fetch(url, {
@@ -627,6 +659,73 @@ export const getLeadInteractions = async (
   }
 
   return response.json();
+};
+
+/**
+ * Initiate lead deletion — sends OTP to admin email
+ */
+export const initiateLeadDeletion = async (tenantId: string, sessionIds: string[]): Promise<string> => {
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  const response = await fetch('/api/v1/leads/delete/initiate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'accept': '*/*',
+    },
+    body: JSON.stringify({ tenantId, sessionIds }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to initiate lead deletion');
+  }
+
+  const data = await response.json();
+  return data.responseStructure?.toastMessage || 'OTP sent to your email';
+};
+
+export interface LeadDeletionResult {
+  interactionsDeleted: number;
+  leadsDeleted: number;
+  deletedSessionIds: string[];
+  deletedLeadIds: string[];
+}
+
+/**
+ * Confirm lead deletion with OTP
+ */
+export const confirmLeadDeletion = async (tenantId: string, sessionIds: string[], otp: string): Promise<LeadDeletionResult> => {
+  const accessToken = await getValidAccessToken();
+
+  if (!accessToken) {
+    throw new Error('No access token available');
+  }
+
+  console.log('confirmLeadDeletion payload:', JSON.stringify({ tenantId, sessionIds, otp }, null, 2));
+
+  const response = await fetch('/api/v1/leads/delete/confirm', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'accept': '*/*',
+    },
+    body: JSON.stringify({ tenantId, sessionIds, otp }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to confirm lead deletion');
+  }
+
+  const data = await response.json();
+  return data.responseStructure?.data;
 };
 
 // Knowledge Graph interfaces

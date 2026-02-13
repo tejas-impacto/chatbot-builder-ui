@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, FileText, X, File, Image, FileSpreadsheet } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import {
   Select,
   SelectContent,
@@ -81,8 +82,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Train Your AI Assistant
+          <InfoTooltip text="Upload documents to teach your agent about your business" size="md" />
         </h2>
         
         <p className="text-sm text-muted-foreground">
@@ -90,8 +92,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
         </p>
 
         <div className="space-y-2">
-          <Label htmlFor="documentType" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="documentType" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Document Category <span className="text-destructive">*</span>
+            <InfoTooltip text="Select the type of documents you are uploading" />
           </Label>
           <Select value={data.documentType} onValueChange={(v) => onChange({ documentType: v })}>
             <SelectTrigger className="onboarding-input">
@@ -159,8 +162,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
         {/* File list */}
         {data.files && data.files.length > 0 && (
           <div className="space-y-3">
-            <Label className="text-sm font-semibold text-foreground">
+            <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Uploaded Files ({data.files.length})
+              <InfoTooltip text="Files that will be used to train your AI agent" />
             </Label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {data.files.map((file, index) => {
@@ -196,8 +200,9 @@ const KnowledgeBaseStep = ({ data, onChange }: KnowledgeBaseStepProps) => {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="documentDescription" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="documentDescription" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Additional context
+            <InfoTooltip text="Any extra instructions or context to help the AI understand your documents" />
           </Label>
           <Textarea
             id="documentDescription"

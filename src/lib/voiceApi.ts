@@ -36,7 +36,12 @@ export const getVoiceSessionTicket = async (
   botId: string,
   leadInfo?: VoiceLeadInfo
 ): Promise<VoiceSessionTicketResponse> => {
-  const accessToken = await getValidAccessToken();
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getValidAccessToken();
+  } catch {
+    // Auth not available - continue without it (for public/anonymous access)
+  }
   const fingerprint = generateVoiceFingerprint();
 
   const response = await fetch('/api/v1/voice/sessions/anonymous', {

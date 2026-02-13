@@ -1,16 +1,17 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { BotCreationData } from "@/pages/BotCreation";
-import { 
-  Headphones, 
-  HelpCircle, 
-  TrendingUp, 
-  Zap, 
-  Settings, 
-  Package, 
-  Sparkles, 
-  Star 
+import {
+  Headphones,
+  HelpCircle,
+  TrendingUp,
+  Zap,
+  Settings,
+  Package,
+  Sparkles,
+  Star,
 } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 
 interface PersonaVoiceStepProps {
   data: BotCreationData;
@@ -41,8 +42,9 @@ const PersonaVoiceStep = ({ data, onChange, errors, botType }: PersonaVoiceStepP
     <div className="space-y-6">
       {/* Select Persona */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Select Persona <span className="text-destructive">*</span>
+          <InfoTooltip text="Choose the role your agent will take on when interacting with users" />
         </Label>
         <div className={`grid grid-cols-4 gap-3 ${errors?.persona ? 'rounded-xl ring-1 ring-destructive p-1' : ''}`}>
           {personaOptions.map((option) => {
@@ -78,8 +80,9 @@ const PersonaVoiceStep = ({ data, onChange, errors, botType }: PersonaVoiceStepP
       {/* Tone of the voice - for voice and both */}
       {(botType === "voice" || botType === "both") && (
         <div className="space-y-3">
-          <Label className="text-sm font-medium text-foreground">
+          <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
             Tone of the voice
+            <InfoTooltip text="Set the speaking style for your voice agent's interactions" />
           </Label>
           <div className="grid grid-cols-3 gap-3">
             {voiceToneOptions.map((option) => (
@@ -111,8 +114,9 @@ const PersonaVoiceStep = ({ data, onChange, errors, botType }: PersonaVoiceStepP
 
       {/* Name of the agent */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-foreground">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
           Name of the agent <span className="text-destructive">*</span>
+          <InfoTooltip text="A display name users will see when chatting with your agent" />
         </Label>
         <Input
           placeholder="Enter your agent name"

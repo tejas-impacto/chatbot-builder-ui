@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MessageSquare, Loader2, Bot, Mic } from "lucide-react";
+import { ArrowLeft, Loader2, Bot, Mic } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { getValidAccessToken, SessionExpiredError, logout } from "@/lib/auth";
 import { createBot, initBotCreationSession, CreateBotRequest } from "@/lib/botApi";
+import { useBotCreation } from "@/contexts/BotCreationContext";
 
 import KnowledgeBaseStep from "@/components/bot-creation/steps/KnowledgeBaseStep";
 import ConversationStyleStep from "@/components/bot-creation/steps/ConversationStyleStep";
 import PurposeCategoryStep from "@/components/bot-creation/steps/PurposeCategoryStep";
 import PersonaVoiceStep from "@/components/bot-creation/steps/PersonaVoiceStep";
+import LeadCaptureStep from "@/components/bot-creation/steps/LeadCaptureStep";
 import UploadDocumentsStep from "@/components/bot-creation/steps/UploadDocumentsStep";
 
 // Helper to capitalize first letter (backend expects 'Short', 'Medium', 'Long')
@@ -42,7 +45,12 @@ export interface BotCreationData {
   voiceTone: string;
   agentName: string;
 
-  // Step 5: Upload Documents
+  // Step 5: Lead Capture
+  enableLeadCapture: boolean;
+  captureFields: string[];
+  salesPriority: string;
+
+  // Step 6: Upload Documents
   files: File[];
 }
 
@@ -60,6 +68,9 @@ const initialData: BotCreationData = {
   persona: "",
   voiceTone: "friendly",
   agentName: "",
+  enableLeadCapture: true,
+  captureFields: ["name", "email", "phone"],
+  salesPriority: "High",
   files: [],
 };
 
@@ -68,7 +79,8 @@ const steps = [
   { id: 2, title: "Conversation Style", description: "Define how your agent communicates" },
   { id: 3, title: "Purpose Category", description: "What will this agent primarily do?" },
   { id: 4, title: "Persona & Voice", description: "Define your bot's personality" },
-  { id: 5, title: "Upload Documents", description: "Add files to enhance agent knowledge" },
+  { id: 5, title: "Lead Capture", description: "Configure lead collection and sales approach" },
+  { id: 6, title: "Upload Documents", description: "Add files to enhance agent knowledge" },
 ];
 
 
@@ -76,6 +88,7 @@ const BotCreation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { startSession } = useBotCreation();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<BotCreationData>(initialData);
   const [isCreating, setIsCreating] = useState(false);
@@ -204,6 +217,14 @@ const BotCreation = () => {
       persona: formData.persona || '',
       agentName: formData.agentName || 'My Chatbot',
       toneOfVoice: formData.voiceTone || 'friendly',
+      is_lead_capture_required: formData.enableLeadCapture,
+      mandatoryLeadFields: {
+        name: formData.captureFields?.includes("name") || false,
+        phone: formData.captureFields?.includes("phone") || false,
+        email: formData.captureFields?.includes("email") || false,
+        company: formData.captureFields?.includes("company") || false,
+      },
+      salesIntentPriority: formData.salesPriority || 'High',
     };
 
     const createBotResponse = await createBot(createBotPayload);
@@ -257,6 +278,9 @@ const BotCreation = () => {
         persona: formData.persona || '',
         tone_of_voice: formData.voiceTone || 'friendly',
         agent_name: formData.agentName || 'My Chatbot',
+        lead_capture: {
+          is_lead_capture_required: formData.enableLeadCapture,
+        },
       };
 
       if (formData.botType === 'both') {
@@ -280,18 +304,17 @@ const BotCreation = () => {
           description: `Voice bot "${formData.agentName}" is also being set up.`,
         });
 
-        // Navigate to progress page for the chat bot
-        navigate("/bot-creation-progress", {
-          state: {
-            botId: chatBot.botId,
-            ticket: chatBot.ticket,
-            sessionId: chatBot.session_id,
-            agentName: formData.agentName || "AI Agent",
-            tenantId,
-            documentsUploaded: formData.files.length,
-            botConfig: { ...botConfig, channelType: 'TEXT' },
-          },
+        // Start session via context and navigate
+        startSession({
+          botId: chatBot.botId,
+          ticket: chatBot.ticket,
+          sessionId: chatBot.session_id,
+          agentName: formData.agentName || "AI Agent",
+          tenantId,
+          documentsUploaded: formData.files.length,
+          botConfig: { ...botConfig, channelType: 'TEXT' } as any,
         });
+        navigate("/bot-creation-progress");
       } else {
         // Single bot creation
         const channelType = formData.botType === 'voice' ? 'VOICE' : 'TEXT';
@@ -305,17 +328,16 @@ const BotCreation = () => {
           });
         }
 
-        navigate("/bot-creation-progress", {
-          state: {
-            botId: bot.botId,
-            ticket: bot.ticket,
-            sessionId: bot.session_id,
-            agentName: formData.agentName || "AI Agent",
-            tenantId,
-            documentsUploaded: formData.files.length,
-            botConfig,
-          },
+        startSession({
+          botId: bot.botId,
+          ticket: bot.ticket,
+          sessionId: bot.session_id,
+          agentName: formData.agentName || "AI Agent",
+          tenantId,
+          documentsUploaded: formData.files.length,
+          botConfig,
         });
+        navigate("/bot-creation-progress");
       }
     } catch (error) {
       // Handle session expiration gracefully
@@ -351,6 +373,8 @@ const BotCreation = () => {
       case 4:
         return <PersonaVoiceStep data={formData} onChange={updateFormData} errors={stepErrors} botType={formData.botType} />;
       case 5:
+        return <LeadCaptureStep data={formData} onChange={updateFormData} />;
+      case 6:
         return <UploadDocumentsStep data={formData} onChange={updateFormData} />;
       default:
         return null;
@@ -362,8 +386,9 @@ const BotCreation = () => {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <MessageSquare className="w-4 h-4 text-primary-foreground" />
+          <div className="relative">
+            <Bot className="w-8 h-8 text-foreground" />
+            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-pink rounded-full" />
           </div>
           <span className="text-lg font-bold text-primary">Agent Builder</span>
         </Link>
@@ -431,8 +456,9 @@ const BotCreation = () => {
           {/* Bot Type Selection - Show on Step 1 */}
           {currentStep === 1 && (
             <div className="mb-8">
-              <label className="block text-sm font-medium text-foreground mb-3">
+              <label className="block text-sm font-medium text-foreground mb-3 flex items-center gap-1.5">
                 Select Bot Type
+                <InfoTooltip text="Choose whether to create a text chat agent, voice agent, or both" />
               </label>
               <div className="grid grid-cols-3 gap-4">
                 <button

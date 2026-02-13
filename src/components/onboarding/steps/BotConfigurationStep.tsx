@@ -2,7 +2,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { TrendingUp, BarChart3, TrendingDown, Phone, Mail, MessageSquare, Webhook } from "lucide-react";
+import { Phone, Mail, MessageSquare } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 
 interface BotConfigurationData {
   supportChannels: string[];
@@ -12,10 +13,6 @@ interface BotConfigurationData {
   regulations: string[];
   restrictedTopics: string;
   botRestrictions: string;
-  enableLeadCapture: boolean;
-  captureFields: string[];
-  salesPriority: string;
-  handoffMethod: string;
   escalationPreference: string;
   communicationStyle: string;
   brandAdjectives: string[];
@@ -40,24 +37,6 @@ const channels = [
   { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
 ];
 const regulations = ["GDPR", "HIPAA", "PCI-DSS", "SOC 2", "ISO 27001", "None"];
-const captureOptions = [
-  { id: "email", label: "Email" },
-  { id: "phone", label: "Phone" },
-  { id: "name", label: "Full Name" },
-  { id: "company", label: "Company" },
-];
-const priorityOptions = [
-  { id: "High", label: "Aggressive", icon: TrendingUp, desc: "Capture leads early" },
-  { id: "Medium", label: "Balanced", icon: BarChart3, desc: "After building rapport" },
-  { id: "Low", label: "Soft", icon: TrendingDown, desc: "Only when asked" },
-];
-const handoffOptions = [
-  { id: "Email", label: "Send Email", icon: Mail },
-  { id: "CRM", label: "Add to CRM", icon: Webhook },
-  { id: "Ticket", label: "Create Ticket", icon: MessageSquare },
-  { id: "Webhook", label: "Webhook", icon: Webhook },
-  { id: "Manual", label: "Manual Handoff", icon: Phone },
-];
 const escalationOptions = [
   { id: "Phone", label: "Phone" },
   { id: "Ticket", label: "Ticket" },
@@ -86,25 +65,19 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
     onChange({ regulations: updated });
   };
 
-  const toggleCaptureField = (field: string) => {
-    const current = data.captureFields || [];
-    const updated = current.includes(field)
-      ? current.filter((f) => f !== field)
-      : [...current, field];
-    onChange({ captureFields: updated });
-  };
-
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Section 1: Customer Support Setup */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Customer Support Setup
+          <InfoTooltip text="Configure how your business handles customer support" size="md" />
         </h2>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Existing support channels
+            <InfoTooltip text="Select the channels you currently use to communicate with customers" />
           </Label>
           <div className="flex flex-wrap gap-4">
             {channels.map((channel) => {
@@ -129,8 +102,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
         {data.supportChannels?.includes("email") && (
           <div className="space-y-2 animate-fade-in">
-            <Label htmlFor="supportEmail" className="text-sm font-semibold text-foreground">
+            <Label htmlFor="supportEmail" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Support Email <span className="text-destructive">*</span>
+              <InfoTooltip text="The email address customers use to reach your support team" />
             </Label>
             <Input
               id="supportEmail"
@@ -145,8 +119,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
         {data.supportChannels?.includes("phone") && (
           <div className="space-y-2 animate-fade-in">
-            <Label htmlFor="supportPhone" className="text-sm font-semibold text-foreground">
+            <Label htmlFor="supportPhone" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               Support Phone
+              <InfoTooltip text="Your support phone number for customer inquiries" />
             </Label>
             <Input
               id="supportPhone"
@@ -160,8 +135,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="ticketingTool" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="ticketingTool" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Ticketing Tool (if any)
+            <InfoTooltip text="The helpdesk or ticketing system you use to track support requests" />
           </Label>
           <Input
             id="ticketingTool"
@@ -173,8 +149,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         </div>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Escalation Preference <span className="text-destructive">*</span>
+            <InfoTooltip text="How the agent should hand off to a human when it can't resolve an issue" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {escalationOptions.map((option) => (
@@ -197,13 +174,15 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
       {/* Section 2: Compliance & Guardrails */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Compliance & Guardrails
+          <InfoTooltip text="Set regulations and restrictions to keep your agent safe and compliant" size="md" />
         </h2>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Applicable regulations
+            <InfoTooltip text="Select compliance standards your business must follow" />
           </Label>
           <div className="flex flex-wrap gap-2">
             {regulations.map((regulation) => (
@@ -224,8 +203,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="restrictedTopics" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="restrictedTopics" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Topics the bot should avoid
+            <InfoTooltip text="Sensitive subjects the agent should not discuss with users" />
           </Label>
           <Input
             id="restrictedTopics"
@@ -237,8 +217,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="botRestrictions" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="botRestrictions" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             The chatbot should never... <span className="text-destructive">*</span>
+            <InfoTooltip text="Hard rules the agent must always follow — things it must never do" />
           </Label>
           <Input
             id="botRestrictions"
@@ -250,117 +231,17 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         </div>
       </div>
 
-      {/* Section 3: Lead Capture */}
+      {/* Section 3: Communication Style */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
-          Lead Capture & Sales
-        </h2>
-
-        <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
-          <div>
-            <Label htmlFor="enableLeadCapture" className="text-sm font-semibold text-foreground">
-              Enable Lead Capture
-            </Label>
-            <p className="text-xs text-muted-foreground mt-1">Collect visitor information for follow-up</p>
-          </div>
-          <Switch
-            id="enableLeadCapture"
-            checked={data.enableLeadCapture}
-            onCheckedChange={(checked) => onChange({ enableLeadCapture: checked })}
-            className="data-[state=checked]:bg-primary"
-          />
-        </div>
-
-        {data.enableLeadCapture && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-foreground">
-                Information to collect
-              </Label>
-              <div className="flex flex-wrap gap-4">
-                {captureOptions.map((option) => (
-                  <div key={option.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`capture-${option.id}`}
-                      checked={data.captureFields?.includes(option.id)}
-                      onCheckedChange={() => toggleCaptureField(option.id)}
-                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                    />
-                    <Label htmlFor={`capture-${option.id}`} className="text-sm font-medium cursor-pointer text-foreground">
-                      {option.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-foreground">
-                Lead capture approach
-              </Label>
-              <div className="grid md:grid-cols-3 gap-3">
-                {priorityOptions.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => onChange({ salesPriority: option.id })}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        data.salesPriority === option.id
-                          ? "bg-primary text-primary-foreground shadow-md"
-                          : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{option.label}</span>
-                      <span className={`text-xs ${data.salesPriority === option.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                        {option.desc}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-foreground">
-                Sales handoff method
-              </Label>
-              <div className="flex flex-wrap gap-3">
-                {handoffOptions.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => onChange({ handoffMethod: option.id })}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                        data.handoffMethod === option.id
-                          ? "bg-primary text-primary-foreground shadow-md"
-                          : "bg-background border border-input text-foreground hover:border-primary/50 hover:bg-muted"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Section 4: Communication Style */}
-      <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Communication Style
+          <InfoTooltip text="Define the tone and personality of your agent's responses" size="md" />
         </h2>
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-foreground">
+          <Label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Bot Communication Style <span className="text-destructive">*</span>
+            <InfoTooltip text="Choose how formal or casual your agent should sound" />
           </Label>
           <div className="grid md:grid-cols-3 gap-3">
             {communicationStyleOptions.map((option) => (
@@ -386,13 +267,15 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
       {/* Section 5: Admin & Notifications */}
       <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2">
+        <h2 className="text-lg font-semibold text-foreground border-b border-border pb-2 flex items-center gap-1.5">
           Admin & Notifications
+          <InfoTooltip text="Manage admin contacts and notification preferences" size="md" />
         </h2>
 
         <div className="space-y-2">
-          <Label htmlFor="primaryAdminEmail" className="text-sm font-semibold text-foreground">
+          <Label htmlFor="primaryAdminEmail" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Primary Admin Email <span className="text-destructive">*</span>
+            <InfoTooltip text="Main contact email for account notifications and alerts" />
           </Label>
           <Input
             id="primaryAdminEmail"
@@ -408,8 +291,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
         <div className="space-y-3">
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
             <div>
-              <Label htmlFor="emailNotifications" className="text-sm font-semibold text-foreground">
+              <Label htmlFor="emailNotifications" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 Email Notifications
+                <InfoTooltip text="Receive alerts and updates via email" />
               </Label>
               <p className="text-xs text-muted-foreground mt-1">Receive alerts and updates via email</p>
             </div>
@@ -430,8 +314,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
             <div>
-              <Label htmlFor="smsNotifications" className="text-sm font-semibold text-foreground">
+              <Label htmlFor="smsNotifications" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 SMS Notifications
+                <InfoTooltip text="Get text message alerts for urgent matters" />
               </Label>
               <p className="text-xs text-muted-foreground mt-1">Get text message alerts for urgent matters</p>
             </div>
@@ -452,8 +337,9 @@ const BotConfigurationStep = ({ data, onChange }: BotConfigurationStepProps) => 
 
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
             <div>
-              <Label htmlFor="inAppNotifications" className="text-sm font-semibold text-foreground">
+              <Label htmlFor="inAppNotifications" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 In-App Notifications
+                <InfoTooltip text="See notifications within the dashboard" />
               </Label>
               <p className="text-xs text-muted-foreground mt-1">See notifications within the dashboard</p>
             </div>

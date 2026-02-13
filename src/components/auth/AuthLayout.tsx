@@ -23,6 +23,9 @@ const AuthLayout = ({ children, variant = "login" }: AuthLayoutProps) => {
         </div>
       </div>
 
+      {/* Vertical Divider */}
+      <div className="hidden lg:block w-px bg-border" />
+
       {/* Right Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 auth-gradient-bg items-center justify-center p-16 relative overflow-hidden">
         {/* Decorative wave pattern */}

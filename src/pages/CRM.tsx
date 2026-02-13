@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search, Plus, MoreVertical, Mail, Phone, MapPin } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,7 +67,7 @@ const CRM = () => {
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Customer Relationship Management</h1>
+                <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">Customer Relationship Management <InfoTooltip text="Track and manage customer leads captured by your AI agents" size="md" /></h1>
                 <p className="text-muted-foreground">Manage leads captured by your AI agents</p>
               </div>
               <Button className="rounded-full bg-primary hover:bg-primary/90">
@@ -108,7 +109,7 @@ const CRM = () => {
             {/* Leads List */}
             <div className="space-y-3">
               {filteredLeads.map((lead) => (
-                <Card key={lead.id} className="border-border/50 hover:border-primary/30 hover:shadow-sm transition-all">
+                <Card key={lead.id} className="border-border/50 hover:border-primary/30 hover:shadow-md transition-all">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">

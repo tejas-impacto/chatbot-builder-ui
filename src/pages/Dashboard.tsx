@@ -12,8 +12,9 @@ import {
   Zap,
   AlertCircle,
   X,
-  Loader2
+  Loader2,
 } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -150,28 +151,32 @@ const Dashboard = () => {
       value: metricsLoading ? "-" : String(metricsData?.bots?.textBots ?? 0),
       icon: Bot,
       trend: `${metricsData?.bots?.totalActive ?? 0} total active`,
-      color: "bg-primary/10 text-primary"
+      color: "bg-primary/10 text-primary",
+      info: "Number of text-based chat agents currently active",
     },
     {
       title: "Active Voice Bots",
       value: metricsLoading ? "-" : String(metricsData?.bots?.voiceBots ?? 0),
       icon: Mic,
       trend: "Voice assistants",
-      color: "bg-accent/10 text-accent"
+      color: "bg-accent/10 text-accent",
+      info: "Number of voice agents currently active",
     },
     {
       title: "Total Sessions",
       value: metricsLoading ? "-" : String(metricsData?.sessions?.total ?? 0),
       icon: MessageSquare,
       trend: `${metricsData?.sessions?.textSessions ?? 0} text, ${metricsData?.sessions?.voiceSessions ?? 0} voice`,
-      color: "bg-blue-500/10 text-blue-500"
+      color: "bg-blue-500/10 text-blue-500",
+      info: "Combined count of all chat and voice conversations",
     },
     {
       title: "Text Sessions",
       value: metricsLoading ? "-" : String(metricsData?.sessions?.textSessions ?? 0),
       icon: TrendingUp,
       trend: "Chat conversations",
-      color: "bg-green-500/10 text-green-500"
+      color: "bg-green-500/10 text-green-500",
+      info: "Number of text-based chat conversations",
     },
   ];
 
@@ -234,14 +239,14 @@ const Dashboard = () => {
           <div className="p-6 space-y-8">
             {/* Metrics */}
             <section>
-              <h2 className="text-lg font-semibold text-foreground mb-4">Performance Metrics</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-1.5">Performance Metrics <InfoTooltip text="Key performance indicators for your AI agents" size="md" /></h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {metrics.map((metric) => (
-                  <Card key={metric.title} className="border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                  <Card key={metric.title} className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm text-muted-foreground mb-1">{metric.title}</p>
+                          <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">{metric.title} <InfoTooltip text={metric.info} /></p>
                           <p className="text-3xl font-bold text-foreground">{metric.value}</p>
                           <p className="text-xs text-muted-foreground mt-1">{metric.trend}</p>
                         </div>
@@ -257,12 +262,12 @@ const Dashboard = () => {
 
             {/* Quick Actions */}
             <section>
-              <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-1.5">Quick Actions <InfoTooltip text="Shortcuts to common tasks like creating agents or uploading data" size="md" /></h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {quickActions.map((action) => (
                   <Card
                     key={action.title}
-                    className={`border-border/50 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group ${
+                    className={`border-border/50 shadow-md hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group ${
                       requiresOnboarding ? 'opacity-75' : ''
                     }`}
                     onClick={() => {
@@ -298,11 +303,12 @@ const Dashboard = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Recent Activity */}
-              <Card className="lg:col-span-1 border-border/50 shadow-sm">
+              <Card className="lg:col-span-1 border-border/50 shadow-md">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Zap className="w-5 h-5 text-primary" />
                     Recent Activity
+                    <InfoTooltip text="Latest events across your agents, sessions, and leads" size="md" />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -332,9 +338,13 @@ const Dashboard = () => {
                           }
                         }}
                       >
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground">{formatActionType(activity.actionType)}</p>
-                          <p className="text-xs text-muted-foreground">{activity.entityName || activity.entityType}</p>
+                          <p className="text-xs text-muted-foreground font-mono truncate" title={activity.entityType === 'SESSION' ? activity.entityId : undefined}>
+                            {activity.entityType === 'SESSION' && activity.entityId
+                              ? activity.entityId
+                              : (activity.entityName || activity.entityType)}
+                          </p>
                         </div>
                         <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">{formatTimeAgo(activity.createdAt)}</span>
                       </div>
@@ -344,11 +354,12 @@ const Dashboard = () => {
               </Card>
 
               {/* Most Used Bots */}
-              <Card className="lg:col-span-2 border-border/50 shadow-sm">
+              <Card className="lg:col-span-2 border-border/50 shadow-md">
                 <CardHeader className="pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Bot className="w-5 h-5 text-primary" />
                     Most Used Bots
+                    <InfoTooltip text="Your most frequently used AI agents ranked by activity" size="md" />
                   </CardTitle>
                   <Button
                     variant="outline"
@@ -389,7 +400,7 @@ const Dashboard = () => {
                     bots.slice(0, 4).map((bot) => (
                       <div
                         key={bot.botId}
-                        className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer"
+                        className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer"
                         onClick={() => navigate(`/manage-agents/bot/${bot.botId}`, { state: { bot } })}
                       >
                         <div className="flex items-center gap-4">

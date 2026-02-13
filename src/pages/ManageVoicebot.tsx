@@ -21,6 +21,7 @@ interface LocationState {
   botId: string;
   tenantId: string;
   botName: string;
+  showLeadForm?: boolean;
 }
 
 const ManageVoicebot = () => {
@@ -34,7 +35,7 @@ const ManageVoicebot = () => {
   const [selectedLanguage, setSelectedLanguage] = useState("en");
 
   // Lead form state
-  const [showLeadForm, setShowLeadForm] = useState(true);
+  const [showLeadForm, setShowLeadForm] = useState(locationState?.showLeadForm ?? false);
   const [leadInfo, setLeadInfo] = useState<VoiceLeadInfo | null>(null);
 
   // Get bot info from location state or use defaults for testing

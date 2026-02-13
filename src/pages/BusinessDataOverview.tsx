@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Building2, Globe, Users, Phone, Shield, Target, Palette, Bell, Pencil, Save, Loader2 } from "lucide-react";
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,7 +121,8 @@ const BusinessDataOverview = () => {
       const tenantId = localStorage.getItem('tenantId');
 
       if (!accessToken || !tenantId) {
-        throw new Error('Authentication required');
+        // No tenant yet (onboarding not done) — just show empty fields
+        return;
       }
 
       const response = await fetch(`/api/v1/tenants/${tenantId}`, {
@@ -210,7 +212,7 @@ const BusinessDataOverview = () => {
         iso27001: editedData.iso27001,
         restrictedTopics: editedData.restrictedTopics,
         mustNotInstructions: editedData.mustNotInstructions,
-        isLeadCaptureRequired: editedData.leadCaptureRequired,
+        is_lead_capture_required: editedData.leadCaptureRequired,
         mandatoryLeadFields: {
           name: editedData.nameRequired,
           phone: editedData.phoneRequired,
@@ -298,7 +300,7 @@ const BusinessDataOverview = () => {
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Business Data Overview</h1>
+                <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">Business Data Overview <InfoTooltip text="All your business information that powers your AI agents" size="md" /></h1>
                 <p className="text-muted-foreground">View and manage your business information</p>
               </div>
               {isEditing ? (
@@ -344,6 +346,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Building2 className="w-5 h-5" />}
                 title="Company Identity"
+                info="Core details about your company used to personalize AI agent responses"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field
@@ -386,6 +389,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Globe className="w-5 h-5" />}
                 title="Business Operations"
+                info="Products, customer type, geography, and company size details"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field
@@ -444,6 +448,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Phone className="w-5 h-5" />}
                 title="Support Channels"
+                info="Configure how customers can reach your support team"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <CheckboxField
@@ -502,6 +507,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Shield className="w-5 h-5" />}
                 title="Compliance & Risk"
+                info="Regulatory standards your agents must comply with and content restrictions"
               >
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                   <CheckboxField
@@ -557,6 +563,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Target className="w-5 h-5" />}
                 title="Lead Capture & Sales"
+                info="Configure which lead fields are required and how sales handoffs work"
               >
                 <div className="mb-4">
                   <CheckboxField
@@ -623,6 +630,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Palette className="w-5 h-5" />}
                 title="Brand Tone & Style"
+                info="Define how your AI agents communicate — tone, language, and words to avoid"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SelectField
@@ -660,6 +668,7 @@ const BusinessDataOverview = () => {
               <Section
                 icon={<Bell className="w-5 h-5" />}
                 title="Admin & Notifications"
+                info="Admin contact emails and notification preferences for alerts"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <Field
@@ -709,16 +718,20 @@ const BusinessDataOverview = () => {
 interface SectionProps {
   icon: React.ReactNode;
   title: string;
+  info?: string;
   children: React.ReactNode;
 }
 
-const Section = ({ icon, title, children }: SectionProps) => (
+const Section = ({ icon, title, info, children }: SectionProps) => (
   <div className="bg-card rounded-2xl border border-border p-6">
     <div className="flex items-center gap-3 mb-4">
       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
         {icon}
       </div>
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+      <h2 className="text-lg font-semibold text-foreground flex items-center gap-1.5">
+        {title}
+        {info && <InfoTooltip text={info} size="md" />}
+      </h2>
     </div>
     {children}
   </div>

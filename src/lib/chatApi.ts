@@ -118,7 +118,8 @@ export const createChatServerSession = async (
   tenantId: string,
   botId: string,
   agentName: string = 'AI Assistant',
-  welcomeMessage: string = 'Hello! How can I help you today?'
+  welcomeMessage: string = 'Hello! How can I help you today?',
+  leadInfo?: { firstName: string; lastName?: string; email: string; phone?: string }
 ): Promise<ChatServerSessionResponse> => {
   const fingerprint = generateFingerprint();
 
@@ -134,6 +135,12 @@ export const createChatServerSession = async (
       channelType: 'TEXT',
       fingerprint,
       metadata: {},
+      ...(leadInfo && {
+        firstName: leadInfo.firstName,
+        lastName: leadInfo.lastName,
+        email: leadInfo.email,
+        phone: leadInfo.phone,
+      }),
     }),
   });
 
@@ -142,19 +149,9 @@ export const createChatServerSession = async (
     throw new Error(error.message || 'Failed to create chat session');
   }
 
-  // Map the API response to ChatServerSessionResponse format
   const data = await response.json();
   const sessionData = data.responseStructure?.data;
 
-  // Debug: log the full response to identify correct field names
-  console.log('Anonymous session FULL response:', JSON.stringify(data, null, 2));
-  console.log('Anonymous session data fields:', sessionData ? Object.keys(sessionData) : 'no sessionData');
-  console.log('Anonymous session sessionId:', sessionData?.sessionId);
-  console.log('Anonymous session session_id:', sessionData?.session_id);
-  console.log('Anonymous session id:', sessionData?.id);
-  console.log('Anonymous session sessionToken:', sessionData?.sessionToken);
-
-  // Try multiple possible field names for the session ID
   const resolvedSessionId = sessionData?.sessionId
     || sessionData?.session_id
     || sessionData?.id
@@ -171,7 +168,7 @@ export const createChatServerSession = async (
       agent_name: sessionData?.chatbotName || agentName,
       welcome_message: welcomeMessage,
     },
-    lead_form_required: true,
+    lead_form_required: sessionData?.isLeadCaptureRequired ?? sessionData?.leadCaptureRequired ?? sessionData?.lead_form_required ?? true,
     lead_id: sessionData?.leadId,
   };
 };
@@ -199,6 +196,28 @@ export const getSessionInfo = async (sessionToken: string) => {
 };
 
 /**
+ * End a chat session
+ * REST API: DELETE /api/v1/chat/sessions
+ * @param sessionToken - The session token from createChatServerSession
+ * @param tenantId - The tenant identifier
+ */
+export const endChatSession = async (sessionToken: string, tenantId?: string): Promise<void> => {
+  const response = await fetch('/api/v1/chat/sessions', {
+    method: 'DELETE',
+    headers: {
+      'accept': '*/*',
+      'X-Session-Token': sessionToken,
+      ...(tenantId && { 'X-Tenant-Id': tenantId }),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.responseStructure?.toastMessage || error.message || 'Failed to end chat session');
+  }
+};
+
+/**
  * Submit lead form to Main API (authenticated)
  * @param tenantId - Tenant identifier
  * @param botId - Bot identifier
@@ -209,12 +228,14 @@ export const submitLeadForm = async (
   tenantId: string,
   botId: string,
   sessionId: string,
-  userInfo: UserInfo
+  userInfo: UserInfo,
+  sessionToken?: string
 ) => {
-  const accessToken = await getValidAccessToken();
-
-  if (!accessToken) {
-    throw new Error('No access token available');
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getValidAccessToken();
+  } catch {
+    // Auth not available - use session token for public/anonymous access
   }
 
   // Build lead data: start with defaults and merge any captured data
@@ -235,14 +256,13 @@ export const submitLeadForm = async (
     lead: leadData,
   };
 
-  // Debug: log the payload being sent
-  console.log('submitLeadForm payload:', JSON.stringify(payload, null, 2));
-
   const response = await fetch('/api/v1/leads/interactions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'accept': '*/*',
+      'X-Tenant-Id': tenantId,
+      ...(sessionToken && { 'X-Session-Token': sessionToken }),
       ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
     },
     body: JSON.stringify(payload),

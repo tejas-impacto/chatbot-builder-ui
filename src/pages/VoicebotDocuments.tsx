@@ -635,7 +635,7 @@ const VoicebotDocuments = () => {
                       {filteredFiles.map((file) => (
                         <div
                           key={file.id}
-                          className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-sm transition-all bg-background"
+                          className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:shadow-md transition-all bg-background"
                         >
                           <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileColor(file.type)}`}>

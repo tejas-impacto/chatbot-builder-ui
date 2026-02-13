@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Loader2, Network, ChevronRight, RefreshCw, Bot, AlertCircle } from 'lucide-react';
+import InfoTooltip from "@/components/ui/info-tooltip";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -321,7 +322,7 @@ const KnowledgeGraphPage = () => {
                     <Network className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-foreground">Knowledge Graph</h1>
+                    <h1 className="text-xl font-bold text-foreground flex items-center gap-1.5">Knowledge Graph <InfoTooltip text="Visual map of how your business data and concepts are connected" size="md" /></h1>
                     <p className="text-sm text-muted-foreground">
                       {selectedBotId === 'all' ? (
                         <>All Bots - {visibleNodes.length} nodes, {visibleEdges.length} relationships</>
